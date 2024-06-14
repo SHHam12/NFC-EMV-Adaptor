@@ -74,22 +74,14 @@ object BytesUtils {
         s.append(lo.uppercaseChar())
     }
 
-    fun hexTobyte(s: String): ByteArray {
-        if (s.length % 2 == 0) {
-            return hexTobyte(s.toByteArray(), 0, s.length shr 1)
-        } else {
-            throw RuntimeException("Uneven number(" + s.length + ") of hex digits passed to hex2byte.")
+    fun hexTobyte(hex: String): ByteArray {
+        val len = hex.length
+        val data = ByteArray(len / 2)
+        var i = 0
+        while (i < len) {
+            data[i / 2] = ((Character.digit(hex[i], 16) shl 4) + Character.digit(hex[i + 1], 16)).toByte()
+            i += 2
         }
-    }
-
-    fun hexTobyte(b: ByteArray, offset: Int, len: Int): ByteArray {
-        val d = ByteArray(len)
-        for (i in 0 until len * 2) {
-            val shift = if (i % 2 == 1) 0 else 4
-            d[i shr 1] =
-                (d[i shr 1].toInt() or (Char(b[offset + i].toUShort()).digitToIntOrNull(16)
-                    ?: -1 shl shift)).toByte()
-        }
-        return d
+        return data
     }
 }
