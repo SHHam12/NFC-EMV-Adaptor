@@ -1,0 +1,59 @@
+# Gradle files
+.gradle/
+build/
+**/build/
+
+# Local configuration file (sdk path, etc)
+local.properties
+
+# Log files
+*.log
+
+# Android Studio files
+.idea/
+*.iml
+*.iws
+*.ipr
+.idea/workspace.xml
+.idea/libraries
+.idea/tasks.xml
+.idea/caches
+.idea/modules.xml
+.idea/gradle.xml
+.idea/assetWizardSettings.xml
+.idea/dictionaries
+
+# Keystore files
+*.jks
+*.keystore
+
+# Other files
+.DS_Store
+*.class
+*.jar
+*.war
+*.ear
+*.swp
+*.swo
+*.swn
+*.tmp
+*.orig
+*.bak
+
+# NDK
+obj/
+.libs/
+
+# JetBrains specific files
+out/
+
+# Android specific files
+.cxx/
+.externalNativeBuild/
+
+# Kotlin specific files
+*.kotlin_metadata/
+
+# MacOS specific files
+*.DS_Store
+.idea/*
