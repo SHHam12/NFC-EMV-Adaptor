@@ -53,7 +53,7 @@ class CaPublicKeyTableTest {
         val publicKeys = publicKeyTable!!.getPublicKeys()
         Assert.assertNotNull(publicKeys)
         Assert.assertFalse(publicKeys.isEmpty())
-        Assert.assertEquals(1, publicKeys.size.toLong())
+        Assert.assertEquals(2, publicKeys.size.toLong())
     }
 
     @Test

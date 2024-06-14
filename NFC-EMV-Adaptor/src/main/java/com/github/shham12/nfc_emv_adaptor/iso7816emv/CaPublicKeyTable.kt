@@ -27,7 +27,8 @@ class CaPublicKeyTable(xmlString: String) {
         val document = builder.parse(xmlInput)
 
         val publicKeyList = mutableListOf<CaPublicKey>()
-        val capkElements = document.getElementsByTagName("CAPK")
+        val arrayOfCapkElements = document.getElementsByTagName("ArrayOfCAPK").item(0) as Element
+        val capkElements = arrayOfCapkElements.getElementsByTagName("CAPK")
 
         for (i in 0 until capkElements.length) {
             val element = capkElements.item(i) as Element
