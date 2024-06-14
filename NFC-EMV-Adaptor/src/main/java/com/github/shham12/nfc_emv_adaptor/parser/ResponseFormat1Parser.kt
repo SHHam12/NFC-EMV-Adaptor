@@ -12,10 +12,10 @@ object ResponseFormat1Parser {
             tlvList.add(TLV("94", data.slice(2 until data.size).size / 2, data.slice(2 until data.size).toByteArray()))
         }
         else if (cmd == CommandEnum.GENAC) {
-            tlvList.add(TLV("9F27", 1, data.slice(0 until 2).toByteArray()))
-            tlvList.add(TLV("9F36", 2, data.slice(2 until 6).toByteArray()))
-            tlvList.add(TLV("9F26", 8, data.slice(6 until 22).toByteArray()))
-            tlvList.add(TLV("9F36", data.slice(22 until data.size).size / 2, data.slice(22 until data.size).toByteArray()))
+            tlvList.add(TLV("9F27", 1, data.slice(0 until 1).toByteArray()))
+            tlvList.add(TLV("9F36", 2, data.slice(1 until 3).toByteArray()))
+            tlvList.add(TLV("9F26", 8, data.slice(3 until 11).toByteArray()))
+            tlvList.add(TLV("9F10", data.size - 11, data.slice(11 until data.size).toByteArray()))
         }
         return tlvList
     }
