@@ -2,6 +2,7 @@ package com.github.shham12.nfc_emv_adaptor.util
 
 import com.github.shham12.nfc_emv_adaptor.iso7816emv.EMVTags
 import com.github.shham12.nfc_emv_adaptor.iso7816emv.TLV
+import com.github.shham12.nfc_emv_adaptor.util.BytesUtils.bytesToString
 
 class TLVList {
     private val listOfTLV: MutableList<TLV> = mutableListOf()
@@ -38,16 +39,16 @@ class TLVList {
     fun generate(exclusiveConstructed: Boolean, filteredTags: Boolean): String {
         val result = StringBuilder()
         listOfTLV
-            .filterNot { it.value.isEmpty() || it.value.size < 2 }
+            .filterNot { it.value.isEmpty() || it.value.size < 1 }
             .filterNot {
                 exclusiveConstructed && it.tag.isConstructed()
             }
             .filterNot { filteredTags && !EMVTags.TAGS.containsKey(it.tag.getTag()) }
             .forEach {
-                val length = it.value.size / 2
-                result.append(it.tag)
+                val length = it.value.size
+                result.append(it.tag.getTag())
                     .append(length.toString(16).padStart(2, '0'))
-                    .append(it.value)
+                    .append(bytesToString(it.value))
             }
         return result.toString()
     }

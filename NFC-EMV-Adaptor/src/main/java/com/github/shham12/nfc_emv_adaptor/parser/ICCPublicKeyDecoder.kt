@@ -10,7 +10,6 @@ object ICCPublicKeyDecoder {
     fun retrievalICCPublicKeyModulus(emvTags: MutableMap<String, ByteArray>, capk: CaPublicKey): ByteArray {
         val issuerPublicKeyModulus = IssuerPublicKeyDecoder.retrievalIssuerPublicKeyModulus(emvTags, capk)
 
-        val modulus = BytesUtils.hexTobyte(capk.modulus)
         val exponent = emvTags["9F32"]?: throw IllegalArgumentException("ICC Public Key Exponent not found in Card")
 
         val certificate = emvTags["9F46"] ?: throw IllegalArgumentException("ICC Public Key Certificate not found in Card")
@@ -20,7 +19,7 @@ object ICCPublicKeyDecoder {
 
         //Step 2: The Recovered Data Trailer is equal to 'BC'
         var decryptedICC = performRSA(certificate, exponent, issuerPublicKeyModulus)
-        assert(decryptedICC[modulus.size - 1] == 0xBC.toByte())
+        assert(decryptedICC[issuerPublicKeyModulus.size - 1] == 0xBC.toByte())
 
         //Step 3: The Recovered Data Header is equal to '6A'
         assert(decryptedICC[0] == 0x6A.toByte());
@@ -74,7 +73,7 @@ object ICCPublicKeyDecoder {
 
         // Step 11: Concatenate the Leftmost Digits of the ICC Public Key
         //and the ICC Public Key Remainder (if present) to obtain the ICC Public Key Modulus
-        val leftmostDigits = decryptedICC.sliceArray(21 until 21 + (modulus.size - 42))
+        val leftmostDigits = decryptedICC.sliceArray(21 until (issuerPublicKeyModulus.size - 43))
         val iccPublicKeyModulus = if (remainder != null) leftmostDigits + remainder else leftmostDigits
 
         return iccPublicKeyModulus

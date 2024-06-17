@@ -93,7 +93,7 @@ object DOLParser {
         }
     }
 
-    fun generateDOLdata(dolTags: List<DOL>?, isPDOL: Boolean): ByteArray {
+    fun generateDOLdata(dolTags: List<DOL>?, needsCommandTemplate: Boolean): ByteArray {
         val commandDataField = StringBuilder()
         var length = 0
 
@@ -124,7 +124,7 @@ object DOLParser {
         val lengthHex = length.toString(16).padStart(2, '0')
 
         // Adjust the command template based on whether it is a PDOL or not
-        val commandTemplate = if (isPDOL) {
+        val commandTemplate = if (needsCommandTemplate) {
             "83$lengthHex$commandDataField" // PDOL
         } else {
             commandDataField.toString() // CDOL data
