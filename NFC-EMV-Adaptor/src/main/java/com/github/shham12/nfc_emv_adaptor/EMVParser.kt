@@ -138,7 +138,8 @@ class EMVParser(pProvider: IProvider, pContactLess: Boolean = true, capkXML: Str
             var CDOL1Data: ByteArray? = DOLParser.generateDOLdata(cdoldata, false)
             //Check 82 tag value whether it support CDA or not
             var p1Field = if(matchBitByBitIndex(emvTags["82"]!!.get(0), 0)) 0x90 else 0x80
-            var GenAC: ByteArray? = provider!!.transceive(APDUCommand(CommandEnum.GENAC, p1Field, 0x00, CDOL1Data, 0).toBytes())
+//            var GenAC: ByteArray? = provider!!.transceive(APDUCommand(CommandEnum.GENAC, p1Field, 0x00, CDOL1Data, 0).toBytes())
+            var GenAC: ByteArray? = provider!!.transceive(APDUCommand(CommandEnum.GENAC, 0x80, 0x00, CDOL1Data, 0).toBytes())
             if (GenAC != null) {
                 TLVParser.parseEx(GenAC).getTLVList().forEach { tlv: TLV ->
                     if (tlv.tag.isConstructed() == false)
@@ -232,7 +233,9 @@ class EMVParser(pProvider: IProvider, pContactLess: Boolean = true, capkXML: Str
             // Check AID is AMEX and 9F6E tag is exist from PDOL. If not exist it needs to update 9F35 tag value with (9F35 & 9F6D) operation for GPO
             val amex = byteArrayOf(0xA0.toByte(), 0x00.toByte(), 0x00.toByte(), 0x00.toByte(), 0x25.toByte())
             if (emvTags["4F"]!!.containsSequence(amex) && !containsTag(pdoldata, "9F6E")) {
-                updateDOLValue(pdoldata,"9F35", byteArrayOf(0x22.toByte() or 0xC8.toByte()))
+                // TODO Need to set 9F6D value according to CVM Required limit logic
+                var ctlsReaderCapability = 0XC8 // CVM Required 0XC8 CVM Not Required 0XC0
+                updateDOLValue(pdoldata,"9F35", byteArrayOf(0x22.toByte() or ctlsReaderCapability.toByte()))
             }
         }
         var data = provider!!.transceive(APDUCommand(CommandEnum.GPO, DOLParser.generateDOLdata(pdoldata, true), 0).toBytes())

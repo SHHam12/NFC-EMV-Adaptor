@@ -3,6 +3,7 @@ package com.github.shham12.nfc_emv_adaptor.iso7816emv.parser
 import com.github.shham12.nfc_emv_adaptor.iso7816emv.impl.CaPublicKey
 import com.github.shham12.nfc_emv_adaptor.parser.IssuerPublicKeyDecoder
 import com.github.shham12.nfc_emv_adaptor.util.BytesUtils.bytesToString
+import com.github.shham12.nfc_emv_adaptor.util.BytesUtils.fromString
 import org.junit.Assert.*
 import org.junit.Test
 class IssuerPublicKeyDecoderTest {
@@ -11,30 +12,12 @@ class IssuerPublicKeyDecoderTest {
     fun testRetrievalIssuerPublicKey() {
         // Sample data
         val emvTags = mutableMapOf(
-            "90" to byteArrayOf(0x20.toByte(), 0xDF.toByte(), 0x7F.toByte(), 0xF4.toByte(), 0xB9.toByte(), 0x96.toByte(), 0x81.toByte(), 0x69.toByte(),
-                0xB5.toByte(), 0x0D.toByte(), 0xAB.toByte(), 0xED.toByte(), 0x60.toByte(), 0x6B.toByte(), 0x2F.toByte(), 0xA1.toByte(), 0x2A.toByte(),
-                0x0A.toByte(), 0x26.toByte(), 0xED.toByte(), 0x0A.toByte(), 0x97.toByte(), 0x91.toByte(), 0xF5.toByte(), 0xFE.toByte(), 0x16.toByte(),
-                0x96.toByte(), 0x5A.toByte(), 0xC3.toByte(), 0xA3.toByte(), 0xAC.toByte(), 0x60.toByte(), 0x92.toByte(), 0x4B.toByte(), 0xA7.toByte(),
-                0x22.toByte(), 0xA7.toByte(), 0xEA.toByte(), 0x66.toByte(), 0x8D.toByte(), 0x40.toByte(), 0xC7.toByte(), 0x9A.toByte(), 0x7A.toByte(),
-                0x8F.toByte(), 0x51.toByte(), 0x99.toByte(), 0x49.toByte(), 0xA2.toByte(), 0xE7.toByte(), 0x05.toByte(), 0x9C.toByte(), 0xCD.toByte(),
-                0x46.toByte(), 0x85.toByte(), 0xC1.toByte(), 0x64.toByte(), 0x65.toByte(), 0x08.toByte(), 0x4A.toByte(), 0x47.toByte(), 0xAA.toByte(),
-                0x71.toByte(), 0x19.toByte(), 0x2A.toByte(), 0xBE.toByte(), 0xF7.toByte(), 0xD4.toByte(), 0x5A.toByte(), 0xAE.toByte(), 0x25.toByte(),
-                0x13.toByte(), 0x50.toByte(), 0x1D.toByte(), 0x81.toByte(), 0xBA.toByte(), 0x15.toByte(), 0x0A.toByte(), 0x6C.toByte(), 0x53.toByte(),
-                0x3B.toByte(), 0x02.toByte(), 0x02.toByte(), 0x6C.toByte(), 0x27.toByte(), 0x58.toByte(), 0x88.toByte(), 0xDA.toByte(), 0x3E.toByte(),
-                0x2D.toByte(), 0x62.toByte(), 0xC1.toByte(), 0x55.toByte(), 0x4E.toByte(), 0xD4.toByte(), 0x9B.toByte(), 0xC9.toByte(), 0xBE.toByte(),
-                0xCA.toByte(), 0xBF.toByte(), 0x24.toByte(), 0x38.toByte(), 0x7B.toByte(), 0x1B.toByte(), 0xDE.toByte(), 0x7A.toByte(), 0x06.toByte(),
-                0xE9.toByte(), 0x86.toByte(), 0x1B.toByte(), 0x6C.toByte(), 0xC0.toByte(), 0xF0.toByte(), 0xDA.toByte(), 0xCC.toByte(), 0xC0.toByte(),
-                0x01.toByte(), 0x39.toByte(), 0x3D.toByte(), 0x4E.toByte(), 0x4C.toByte(), 0xB9.toByte(), 0x76.toByte(), 0xEB.toByte(), 0xB3.toByte(),
-                0xC2.toByte(), 0xFC.toByte(), 0x01.toByte(), 0x65.toByte(), 0xD4.toByte(), 0xA3.toByte(), 0x2C.toByte(), 0x0C.toByte(), 0xB9.toByte(),
-                0x9B.toByte(), 0xD8.toByte(), 0x54.toByte(), 0x9B.toByte(), 0x82.toByte(), 0x95.toByte(), 0x02.toByte(), 0x66.toByte(), 0x20.toByte(),
-                0xD0.toByte(), 0x28.toByte(), 0x20.toByte(), 0x45.toByte(), 0x24.toByte(), 0xAC.toByte(), 0xED.toByte(), 0x33.toByte(), 0x79.toByte(),
-                0x55.toByte(), 0x84.toByte(), 0x90.toByte(), 0x45.toByte(), 0x0D.toByte(), 0x21.toByte(), 0xB6.toByte(), 0xA0.toByte(), 0x62.toByte(),
-                0x20.toByte(), 0x4F.toByte(), 0xAF.toByte(), 0x51.toByte(), 0x60.toByte(), 0xFE.toByte(), 0x24.toByte(), 0xCF.toByte(), 0x5A.toByte(),
-                0xC5.toByte(), 0xF2.toByte(), 0xD9.toByte(), 0xB2.toByte(), 0x05.toByte(), 0x33.toByte()),
-            "92" to byteArrayOf(0x8F.toByte(), 0xC4.toByte(), 0x4E.toByte(), 0xE8.toByte(), 0xB5.toByte(), 0xEC.toByte(), 0xB2.toByte(), 0x66.toByte(),
-                0x79.toByte(), 0x02.toByte(), 0x74.toByte(), 0xEE.toByte(), 0xF5.toByte(), 0x0A.toByte(), 0x9F.toByte(), 0x6B.toByte(), 0xD5.toByte(),
-                0x98.toByte(), 0xC5.toByte(), 0x8C.toByte(), 0x44.toByte(), 0x45.toByte(), 0x08.toByte(), 0xE6.toByte(), 0xDF.toByte(), 0x9A.toByte(),
-                0xB7.toByte(), 0xA5.toByte(), 0x02.toByte(), 0x8D.toByte(), 0xE7.toByte(), 0xDE.toByte(), 0xB5.toByte(), 0xDA.toByte(), 0x6B.toByte(), 0xDB.toByte()),
+            "90" to fromString("20DF7FF4B9968169B50DABED606B2FA12A0A26ED0A9791F5FE16965AC3A3AC60924B" +
+                    "A722A7EA668D40C79A7A8F519949A2E7059CCD4685C16465084A47AA71192ABEF7D45AAE2513501D81BA" +
+                    "150A6C533B02026C275888DA3E2D62C1554ED49BC9BECABF24387B1BDE7A06E9861B6CC0F0DACCC00139" +
+                    "3D4E4CB976EBB3C2FC0165D4A32C0CB99BD8549B8295026620D028204524ACED3379558490450D21B6A0" +
+                    "62204FAF5160FE24CF5AC5F2D9B20533"),
+            "92" to fromString("8FC44EE8B5ECB266790274EEF50A9F6BD598C58C444508E6DF9AB7A5028DE7DEB5DA6BDB"),
             "9F32" to byteArrayOf(0x03.toByte()),
             "5A" to byteArrayOf(0x37.toByte(), 0x42.toByte(), 0x45.toByte(), 0x00.toByte(), 0x27.toByte(), 0x51.toByte(), 0x00.toByte(), 0x5F.toByte())
         )
