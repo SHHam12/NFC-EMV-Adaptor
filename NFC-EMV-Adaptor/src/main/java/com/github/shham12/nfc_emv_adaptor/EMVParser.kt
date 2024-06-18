@@ -9,8 +9,12 @@ import com.github.shham12.nfc_emv_adaptor.iso7816emv.apdu.APDUResponse
 import com.github.shham12.nfc_emv_adaptor.iso7816emv.model.AFL
 import com.github.shham12.nfc_emv_adaptor.iso7816emv.model.DOL
 import com.github.shham12.nfc_emv_adaptor.iso7816emv.enum.CommandEnum
+import com.github.shham12.nfc_emv_adaptor.iso7816emv.impl.CaPublicKey
+import com.github.shham12.nfc_emv_adaptor.iso7816emv.model.EMVTransactionRecord
 import com.github.shham12.nfc_emv_adaptor.parser.IProvider
 import com.github.shham12.nfc_emv_adaptor.parser.ResponseFormat1Parser
+import com.github.shham12.nfc_emv_adaptor.parser.SignedDynamicApplicationDataDecoder
+import com.github.shham12.nfc_emv_adaptor.util.BytesUtils.bytesToString
 import com.github.shham12.nfc_emv_adaptor.util.BytesUtils.containsSequence
 import com.github.shham12.nfc_emv_adaptor.util.BytesUtils.matchBitByBitIndex
 import com.github.shham12.nfc_emv_adaptor.util.DOLParser
@@ -49,7 +53,7 @@ class EMVParser(pProvider: IProvider, pContactLess: Boolean = true, capkXML: Str
 
     private var CAPKTable: CaPublicKeyTable? = null
 
-    private var emvTags = mutableMapOf<String, ByteArray>()
+    private var emvTransactionRecord = EMVTransactionRecord()
 
     init {
         CAPKTable = CaPublicKeyTable(capkXML)
@@ -62,7 +66,7 @@ class EMVParser(pProvider: IProvider, pContactLess: Boolean = true, capkXML: Str
      * @return data read from card or null if any provider match the card type
      */
     fun readEmvCard(): MutableMap<String, ByteArray> {
-        emvTags.clear()
+        emvTransactionRecord.clear()
 
         var AFLData: ByteArray? = null
         var CDOL1: ByteArray? = null
@@ -74,11 +78,11 @@ class EMVParser(pProvider: IProvider, pContactLess: Boolean = true, capkXML: Str
             // Parse application and populate to emvTags
             TLVParser.parseEx(application).getTLVList().forEach { tlv: TLV ->
                 if (!tlv.tag.isConstructed())
-                    emvTags[tlv.tag.getTag().uppercase()] = tlv.value
+                    emvTransactionRecord.addEMVTagValue(tlv.tag.getTag().uppercase(), tlv.value)
             }
         }
         // Select AID
-        var pdol: ByteArray? = selectAID(emvTags["4F"])
+        var pdol: ByteArray? = selectAID(emvTransactionRecord.getAID())
         // GPO
         var ResponseMessageTemplate: ByteArray? = gpo(pdol)
         // Extract data from Response Message Template
@@ -91,7 +95,7 @@ class EMVParser(pProvider: IProvider, pContactLess: Boolean = true, capkXML: Str
                 var ParsedMsgTemp = ResponseFormat1Parser.parse(CommandEnum.GPO, MsgTemplate.value)
                 ParsedMsgTemp.getTLVList().forEach { tlv: TLV ->
                     if (!tlv.tag.isConstructed())
-                        emvTags[tlv.tag.getTag()] = tlv.value
+                        emvTransactionRecord.addEMVTagValue(tlv.tag.getTag().uppercase(), tlv.value)
                 }
                 AFLData = ParsedMsgTemp.searchByTag("94")!!.value
             } else {
@@ -114,14 +118,19 @@ class EMVParser(pProvider: IProvider, pContactLess: Boolean = true, capkXML: Str
                 // Send Read Record commands and handle responses
                 for (command in readRecordCommands) {
                     var response = APDUResponse(provider!!.transceive(command.toBytes())!!)
-                    TLVParser.parseEx(response.getData()).getTLVList().forEach { tlv: TLV ->
-                        if (!tlv.tag.isConstructed())
-                            emvTags[tlv.tag.getTag()] = tlv.value
+                    if (response.isSuccess()) {
+                        TLVParser.parseEx(response.getData()).getTLVList().forEach { tlv: TLV ->
+                            if (!tlv.tag.isConstructed())
+                                emvTransactionRecord.addEMVTagValue(
+                                    tlv.tag.getTag().uppercase(),
+                                    tlv.value
+                                )
+                        }
+                        if (TLVParser.parseEx(response.getData()).searchByTag("8C") != null)
+                            CDOL1 = TLVParser.parseEx(response.getData()).searchByTag("8C")?.value
+                        if (TLVParser.parseEx(response.getData()).searchByTag("8D") != null)
+                            CDOL2 = TLVParser.parseEx(response.getData()).searchByTag("8D")?.value
                     }
-                    if (TLVParser.parseEx(response.getData()).searchByTag("8C") != null)
-                        CDOL1 = TLVParser.parseEx(response.getData()).searchByTag("8C")?.value
-                    if (TLVParser.parseEx(response.getData()).searchByTag("8D") != null)
-                        CDOL2 = TLVParser.parseEx(response.getData()).searchByTag("8D")?.value
                 }
                 Log.d(
                     "NFC-EMV-Adaptor",
@@ -135,22 +144,53 @@ class EMVParser(pProvider: IProvider, pContactLess: Boolean = true, capkXML: Str
         // GenAC
         if (CDOL1 != null){
             var cdoldata = parseDOL(CDOL1)
-            var CDOL1Data: ByteArray? = DOLParser.generateDOLdata(cdoldata, null,false)
+            var CDOL1Data: ByteArray? = DOLParser.generateDOLdata(cdoldata, false, emvTransactionRecord)
             //Check 82 tag value whether it support CDA or not
-            var p1Field = if(matchBitByBitIndex(emvTags["82"]!!.get(0), 0)) 0x90 else 0x80
-//            var GenAC: ByteArray? = provider!!.transceive(APDUCommand(CommandEnum.GENAC, p1Field, 0x00, CDOL1Data, 0).toBytes())
-            var GenAC: ByteArray? = provider!!.transceive(APDUCommand(CommandEnum.GENAC, 0x80, 0x00, CDOL1Data, 0).toBytes())
+            var p1Field = if(emvTransactionRecord.isCardSupportCDA()) 0x90 else 0x80
+            var GenAC: ByteArray? = provider!!.transceive(APDUCommand(CommandEnum.GENAC, p1Field, 0x00, CDOL1Data, 0).toBytes())
             if (GenAC != null) {
-                TLVParser.parseEx(GenAC).getTLVList().forEach { tlv: TLV ->
-                    if (tlv.tag.isConstructed() == false)
-                        emvTags[tlv.tag.getTag()] = tlv.value
+                var response = APDUResponse(GenAC)
+                if (response.isSuccess()){
+                    TLVParser.parseEx(response.getData()).getTLVList().forEach { tlv: TLV ->
+                        if (tlv.tag.getTag() == "77")
+                            emvTransactionRecord.addEMVTagValue(tlv.tag.getTag().uppercase(), tlv.value)
+                        else if (!tlv.tag.isConstructed())
+                            emvTransactionRecord.addEMVTagValue(tlv.tag.getTag().uppercase(), tlv.value)
+                    }
+                    // Process Offline Data Authentication
+                    val RID = bytesToString(emvTransactionRecord.getAID().sliceArray(0 until 5)).uppercase()
+                    val capkIndex = bytesToString(emvTransactionRecord.getEMVTags()["8F"]!!).uppercase()
+                    val capk: CaPublicKey? = CAPKTable!!.findPublicKey(RID, capkIndex)
+                    if (capk != null) {
+                        if (emvTransactionRecord.isCardSupportSDA() && !emvTransactionRecord.isCardSupportDDA() && !emvTransactionRecord.isCardSupportDDA()) {
+                            // Need to check 8F, 90, 93, 92, 9F32 tag are exist
+                            // If fail, set SDA Failed Bit in TVR to 1
+                        } else if (emvTransactionRecord.isCardSupportDDA() && !emvTransactionRecord.isCardSupportCDA()) {
+                            // Need to check 8F, 90, 93, 92, 9F32, 9F46, 9F47, 9F48, 9F49 tag are exist
+                            // If fail, set DDA Failed Bit in TVR to 1
+                            SignedDynamicApplicationDataDecoder.retrievalApplicationCryptogram(
+                                emvTransactionRecord,
+                                capk
+                            )
+                        } else if (emvTransactionRecord.isCardSupportCDA()) {
+                            // Need to check 8F, 90, 93, 92, 9F32, 9F46, 9F47, 9F48, 9F49 tag are exist
+                            // If fail, set CDA Failed Bit in TVR to 1
+                            SignedDynamicApplicationDataDecoder.retrievalApplicationCryptogram(
+                                emvTransactionRecord,
+                                capk
+                            )
+                        }
+                    } else {
+                        throw TLVException("Not supported AID")
+                    }
                 }
             }
+
         }
 
-        Log.d("TLVDATA", generateKeyValueString(emvTags))
+        Log.d("TLVDATA", generateKeyValueString(emvTransactionRecord.getEMVTags()))
 
-        return emvTags
+        return emvTransactionRecord.getEMVTags()
     }
 
     /**
@@ -211,7 +251,7 @@ class EMVParser(pProvider: IProvider, pContactLess: Boolean = true, capkXML: Str
             pdol = TLVParser.parseEx(response.getData()).searchByTag("9F38");
             TLVParser.parseEx(response.getData()).getTLVList().forEach { tlv: TLV ->
                 if (!tlv.tag.isConstructed())
-                    emvTags[tlv.tag.getTag()] = tlv.value
+                    emvTransactionRecord.addEMVTagValue(tlv.tag.getTag().uppercase(), tlv.value)
             }
         }
 
@@ -231,12 +271,12 @@ class EMVParser(pProvider: IProvider, pContactLess: Boolean = true, capkXML: Str
         if (pPDOL != null) {
             pdoldata = DOLParser.parseDOL(pPDOL)
         }
-        var data = provider!!.transceive(APDUCommand(CommandEnum.GPO, DOLParser.generateDOLdata(pdoldata, emvTags["4F"], true), 0).toBytes())
+        var data = provider!!.transceive(APDUCommand(CommandEnum.GPO, DOLParser.generateDOLdata(pdoldata, true, emvTransactionRecord), 0).toBytes())
         var response = APDUResponse(data!!)
         if (response.isSuccess()) {
             TLVParser.parseEx(response.getData()).getTLVList().forEach { tlv: TLV ->
                 if (!tlv.tag.isConstructed())
-                    emvTags[tlv.tag.getTag()] = tlv.value
+                    emvTransactionRecord.addEMVTagValue(tlv.tag.getTag().uppercase(), tlv.value)
             }
             Log.d("NFC-EMV-Adaptor", response.getData().joinToString("") { "%02x".format(it) })
         }
@@ -296,6 +336,7 @@ class EMVParser(pProvider: IProvider, pContactLess: Boolean = true, capkXML: Str
             if (key.uppercase() == "90") return@forEach
             if (key.uppercase() == "9F46") return@forEach
             if (key.uppercase() == "9F4B") return@forEach
+            if (key.uppercase() == "77") return@forEach
 
             val temp = value.joinToString("") { byte ->
                 "%02X".format(byte)

@@ -7,12 +7,12 @@ import kotlin.experimental.xor
 
 
 object BytesUtils {
-    fun fromString(id: String): ByteArray {
+    fun String.toByteArray(): ByteArray {
         // Ensure the string has an even number of characters
-        require(id.length % 2 == 0) { "Hex string must have an even length" }
+        require(this.length % 2 == 0) { "Hex string must have an even length" }
 
         // Convert each pair of hex characters to a byte
-        return id.chunked(2)
+        return this.chunked(2)
             .map { it.toInt(16).toByte() }
             .toByteArray()
     }
@@ -83,5 +83,19 @@ object BytesUtils {
             i += 2
         }
         return data
+    }
+
+    fun compareByteArrays(array1: ByteArray, array2: ByteArray): Int {
+        require(array1.size == array2.size) { "Both byte arrays must have the same length" }
+
+        for (i in array1.indices) {
+            val byte1 = array1[i]
+            val byte2 = array2[i]
+
+            if (byte1 != byte2) {
+                return byte1.compareTo(byte2)
+            }
+        }
+        return 0 // Arrays are equal
     }
 }

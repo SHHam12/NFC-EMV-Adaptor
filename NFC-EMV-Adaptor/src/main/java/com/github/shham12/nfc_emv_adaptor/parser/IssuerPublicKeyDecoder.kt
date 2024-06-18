@@ -1,6 +1,7 @@
 package com.github.shham12.nfc_emv_adaptor.parser
 
 import com.github.shham12.nfc_emv_adaptor.iso7816emv.impl.CaPublicKey
+import com.github.shham12.nfc_emv_adaptor.iso7816emv.model.EMVTransactionRecord
 import com.github.shham12.nfc_emv_adaptor.util.BytesUtils.bytesToString
 import com.github.shham12.nfc_emv_adaptor.util.BytesUtils.hexTobyte
 import java.math.BigInteger
@@ -10,28 +11,34 @@ import java.security.NoSuchAlgorithmException
 
 
 object IssuerPublicKeyDecoder {
-    fun retrievalIssuerPublicKeyModulus(emvTags: MutableMap<String, ByteArray>, capk: CaPublicKey): ByteArray {
+    fun retrievalIssuerPublicKeyModulus(pEMVRecord: EMVTransactionRecord, capk: CaPublicKey): ByteArray {
+        var isFailed = false
+
         val modulus = hexTobyte(capk.modulus)
-        val cert = decryptIssuerPKCertificate(emvTags, capk)
+        val cert = decryptIssuerPKCertificate(pEMVRecord.getEMVTags(), capk)
 
         // Contactless transaction does not need to validate SDA is success of not.
         // Step 1: Issuer Public Key Certificate and Certification Authority Public Key Modulus have the same length
-        assert(cert.size == modulus.size)
+        if (cert.size != modulus.size)
+            isFailed = true
 
         // Step 2: The Recovered Data Trailer is equal to 'BC'
-        assert(cert[modulus.size - 1] == 0xBC.toByte())
+        if (cert[modulus.size - 1] != 0xBC.toByte())
+            isFailed = true
 
         // Step 3: The Recovered Data Header is equal to '6A'
-        assert(cert[0] == 0x6A.toByte())
+        if (cert[0] != 0x6A.toByte())
+            isFailed = true
 
         // Step 4: The Certificate Format is equal to '02'
-        assert(cert[1] == 0x02.toByte())
+        if (cert[1] != 0x02.toByte())
+            isFailed = true
 
         // Step 5: Concatenation of Certificate Format through Issuer Public Key or Leftmost Digits of the Issuer Public Key,
         //         followed by the Issuer Public Key Remainder (if present), and the Issuer Public Key Exponent
         val list = cert.sliceArray(1 until 15 + (modulus.size - 36))
-        val remainder = emvTags["92"] ?: byteArrayOf()
-        val exponent = emvTags["9F32"] ?: byteArrayOf()
+        val remainder = pEMVRecord.getIssuerPublicKeyRemainder()
+        val exponent = pEMVRecord.getIssuerPublicKeyExponent()
         val remex = remainder + exponent
         val concatenatedList = list + remex
 
@@ -40,10 +47,11 @@ object IssuerPublicKeyDecoder {
 
         // Step 7: Compare the hash result with the recovered hash result. They have to be equal
         val hashCert = cert.sliceArray(15 + (modulus.size - 36) until 15 + (modulus.size - 36) + 20)
-        assert(hashCert.contentEquals(hashConcat))
+        if (!hashCert.contentEquals(hashConcat))
+            isFailed = true
 
         // Step 8: Verify that the Issuer Identifier matches the lefmost 3-8 PAN digits
-        val pan = emvTags["5A"] ?: throw IllegalArgumentException("PAN not found in Card")
+        val pan = pEMVRecord.getPAN() ?: throw IllegalArgumentException("PAN not found in Card")
         val panLeft = pan.sliceArray(0 until 4)
         val panCert = cert.sliceArray(2 until 6)
         val panCertHex = bytesToString(panCert)
@@ -68,6 +76,14 @@ object IssuerPublicKeyDecoder {
         //          to obtain the Issuer Public Key Modulus
         val leftmostDigits = cert.sliceArray(15 until 15 + (modulus.size - 36))
         val issuerPublicKeyModulus = leftmostDigits + remainder
+
+        if (isFailed){
+            if (pEMVRecord.isCardSupportDDA() && !pEMVRecord.isCardSupportCDA())
+                pEMVRecord.setDDAFailed()
+            else if (pEMVRecord.isCardSupportCDA())
+                pEMVRecord.setCDAFailed()
+        }
+
         return issuerPublicKeyModulus
     }
 

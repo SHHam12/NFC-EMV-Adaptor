@@ -1,6 +1,7 @@
 package com.github.shham12.nfc_emv_adaptor.parser
 
 import com.github.shham12.nfc_emv_adaptor.iso7816emv.impl.CaPublicKey
+import com.github.shham12.nfc_emv_adaptor.iso7816emv.model.EMVTransactionRecord
 import com.github.shham12.nfc_emv_adaptor.util.BytesUtils.bytesToString
 import com.github.shham12.nfc_emv_adaptor.util.BytesUtils.hexTobyte
 import com.github.shham12.nfc_emv_adaptor.util.DOLParser
@@ -8,15 +9,18 @@ import com.github.shham12.nfc_emv_adaptor.util.TLVParser
 import java.security.MessageDigest
 
 object SignedDynamicApplicationDataDecoder {
-    fun retrievalApplicationCryptogram(emvTags: MutableMap<String, ByteArray>, capk: CaPublicKey) {
-        val iccPublicKeyModulus = ICCPublicKeyDecoder.retrievalICCPublicKeyModulus(emvTags, capk)
+    fun retrievalApplicationCryptogram(pEMVRecord: EMVTransactionRecord, capk: CaPublicKey) {
+        var isFailed = false
 
-        val exponent = emvTags["9F47"]?: throw IllegalArgumentException("ICC Public Key Exponent not found in Card")
+        val iccPublicKeyModulus = ICCPublicKeyDecoder.retrievalICCPublicKeyModulus(pEMVRecord, capk)
 
-        val sdad = emvTags["9F4B"] ?: throw IllegalArgumentException("Signed Dynamic Application Data not found in Card")
+        val exponent = pEMVRecord.getICCPublicKeyExponent() ?: throw IllegalArgumentException("ICC Public Key Exponent not found in Card")
+
+        val sdad = pEMVRecord.getSignedDynamicApplicationData() ?: throw IllegalArgumentException("Signed Dynamic Application Data not found in Card")
 
         //Step 1: ICC Public Key Certificate and Issuer Public Key Modulus have the same length
-        assert(sdad.size == iccPublicKeyModulus.size);
+        if (sdad.size != iccPublicKeyModulus.size)
+            isFailed = true
 
         //Step 2: The Recovered Data Trailer is equal to 'BC'
         var decryptedSDAD =
@@ -24,10 +28,12 @@ object SignedDynamicApplicationDataDecoder {
         assert(decryptedSDAD[iccPublicKeyModulus.size - 1] == 0xBC.toByte())
 
         //Step 3: The Recovered Data Header is equal to '6A'
-        assert(decryptedSDAD[0] == 0x6A.toByte());
+        if (decryptedSDAD[0] != 0x6A.toByte())
+            isFailed = true
 
         //Step 4: The Certificate Format is equal to '05'
-        assert(decryptedSDAD[1] == 0x05.toByte());
+        if (decryptedSDAD[1] != 0x05.toByte())
+            isFailed = true
 
         // Step 5: Concatenation
         var length = decryptedSDAD[3].toInt()
@@ -37,14 +43,17 @@ object SignedDynamicApplicationDataDecoder {
         val iccDynamicNumLength = iccDynamicData[0].toInt()
         val iccDynamicNum = iccDynamicData.sliceArray(1 until 1 + iccDynamicNumLength)
         val CID = iccDynamicData.sliceArray(1 + iccDynamicNumLength until 2 + iccDynamicNumLength)
+        val appplicationCryptogram = iccDynamicData.sliceArray(2 + iccDynamicNumLength until iccDynamicData.size - 20)
+        val transactionHashData = iccDynamicData.sliceArray(iccDynamicData.size - 20 until iccDynamicData.size)
 
-        assert(CID.contentEquals(emvTags["9F27"]))
+        if (!CID.contentEquals(pEMVRecord.getCryptogramInformationData()))
+            isFailed = true
 
         // Step 7: Concatenate from left to right the second to the sixth data elements in Table 22 (that
         //is, Signed Data Format through Pad Pattern), followed by the Unpredictable
         //Number.
         val list = decryptedSDAD.sliceArray(1 until (decryptedSDAD.size - 21))
-        val unpredictableNumber = emvTags["9F37"] ?: throw IllegalArgumentException("Unpredictable Number is not generated")
+        val unpredictableNumber = pEMVRecord.getUnpredictableNumber()
         val concatenatedList = list + unpredictableNumber
 
         // Step 8: Generate hash from concatenation
@@ -52,7 +61,8 @@ object SignedDynamicApplicationDataDecoder {
 
         // Step 9: Compare the hash result with the recovered hash result. They have to be equal
         val hashCert = decryptedSDAD.sliceArray((decryptedSDAD.size - 21) until (decryptedSDAD.size - 1))
-        assert(hashCert.contentEquals(hashConcat))
+        if (!hashCert.contentEquals(hashConcat))
+            isFailed = true
 
         // Step 10: Concatenate from left to right the values of the following data elements
         // Only supports contactless => only care about CDOL1
@@ -64,9 +74,9 @@ object SignedDynamicApplicationDataDecoder {
         // - The tags, lengths, and values of the data elements returned by the ICC in the
         //   response to the GENERATE AC command in the order they are returned,
         //   with the exception of the Signed Dynamic Application Data.
-        val pDOL = DOLParser.generateDOLdata(DOLParser.parseDOL(emvTags["9F38"]!!), emvTags["4F"],false)
-        val cDOL1 = DOLParser.generateDOLdata(DOLParser.parseDOL(emvTags["8C"]!!), null,false)
-        val responseMessageTemp2 = TLVParser.parseEx(emvTags["77"]!!)
+        val pDOL = DOLParser.generateDOLdata(DOLParser.parseDOL(pEMVRecord.getPDOL()), false, pEMVRecord)
+        val cDOL1 = DOLParser.generateDOLdata(DOLParser.parseDOL(pEMVRecord.getCDOL1()), false, pEMVRecord)
+        val responseMessageTemp2 = TLVParser.parseEx(pEMVRecord.getResponseMessageTemplate2())
         responseMessageTemp2.removeByTag("9F4B")
         val concatlist = pDOL + cDOL1 + hexTobyte(responseMessageTemp2.generate(false, filteredTags = false).uppercase())
 
@@ -79,10 +89,17 @@ object SignedDynamicApplicationDataDecoder {
         // Step 12: Compare the calculated Transaction Data Hash Code from the previous step with
         //the Transaction Data Hash Code retrieved from the ICC Dynamic Data in step 5. If
         //they are not the same, CDA has failed.
-        assert(iccDynamicData.contentEquals(hashConcatList))
+        if (!transactionHashData.contentEquals(hashConcatList))
+            isFailed = true
 
-        emvTags["9F4C"] = iccDynamicData
-        val appplicationCryptogram = iccDynamicData.sliceArray(2 + iccDynamicNumLength until iccDynamicData.size - 20)
-        emvTags["9F26"] = appplicationCryptogram
+        pEMVRecord.addEMVTagValue("9F4C", iccDynamicData)
+        pEMVRecord.addEMVTagValue("9F26", appplicationCryptogram)
+
+        if (isFailed){
+            if (pEMVRecord.isCardSupportDDA() && !pEMVRecord.isCardSupportCDA())
+                pEMVRecord.setDDAFailed()
+            else if (pEMVRecord.isCardSupportCDA())
+                pEMVRecord.setCDAFailed()
+        }
     }
 }

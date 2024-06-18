@@ -3,6 +3,7 @@ package com.github.shham12.nfc_emv_adaptor.iso7816emv.impl
 import com.github.shham12.nfc_emv_adaptor.iso7816emv.EMVTags
 import com.github.shham12.nfc_emv_adaptor.iso7816emv.ITag
 import com.github.shham12.nfc_emv_adaptor.util.BytesUtils
+import com.github.shham12.nfc_emv_adaptor.util.BytesUtils.toByteArray
 
 
 class Tag(
@@ -18,7 +19,7 @@ class Tag(
     constructor(
         id: String
     ) : this(
-        BytesUtils.fromString(id),
+        id.toByteArray(),
         EMVTags.TAGS.getOrDefault(id, "unknown tag")
     )
 

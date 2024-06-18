@@ -264,6 +264,19 @@ public class MainActivity extends AppCompatActivity {
             "        <PKIndex>FF</PKIndex>\n" +
             "        <RID>A000000768</RID>\n" +
             "      </CAPK>\n" +
+            "      <CAPK>\n" +
+            "        <ExtensionData />\n" +
+            "        <Algorithm>01</Algorithm>\n" +
+            "        <CheckSum>8E8DFF443D78CD91DE88821D70C98F0638E51E49</CheckSum>\n" +
+            "        <ExpiryDate>12312024</ExpiryDate>\n" +
+            "        <Exponent>03</Exponent>\n" +
+            "        <HashAlgorithm>01</HashAlgorithm>\n" +
+            "        <Issuer />\n" +
+            "        <KeyType />\n" +
+            "        <Modulus>B362DB5733C15B8797B8ECEE55CB1A371F760E0BEDD3715BB270424FD4EA26062C38C3F4AAA3732A83D36EA8E9602F6683EECC6BAFF63DD2D49014BDE4D6D603CD744206B05B4BAD0C64C63AB3976B5C8CAAF8539549F5921C0B700D5B0F83C4E7E946068BAAAB5463544DB18C63801118F2182EFCC8A1E85E53C2A7AE839A5C6A3CABE73762B70D170AB64AFC6CA482944902611FB0061E09A67ACB77E493D998A0CCF93D81A4F6C0DC6B7DF22E62DB</Modulus>\n" +
+            "        <PKIndex>C9</PKIndex>\n" +
+            "        <RID>A000000025</RID>\n" +
+            "      </CAPK>\n" +
             "    </ArrayOfCAPK>\n" +
             "    <EMVKeyUpdID>0</EMVKeyUpdID>\n" +
             "  </CAPK>";

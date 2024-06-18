@@ -1,48 +1,16 @@
 package com.github.shham12.nfc_emv_adaptor.util
 
 import com.github.shham12.nfc_emv_adaptor.iso7816emv.model.DOL
+import com.github.shham12.nfc_emv_adaptor.iso7816emv.model.EMVTransactionRecord
+import com.github.shham12.nfc_emv_adaptor.util.BytesUtils.bytesToString
+import com.github.shham12.nfc_emv_adaptor.util.BytesUtils.containsSequence
 import java.security.SecureRandom
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
+import kotlin.experimental.or
 
 object DOLParser {
-    private val defaultValues = mapOf(
-            "9F35" to hexStringToByteArray("22"),
-            "9F6E" to hexStringToByteArray("D8004000"),
-            "9F66" to hexStringToByteArray("20404000"),
-            "9F02" to hexStringToByteArray("000000000001"),
-            "9F03" to hexStringToByteArray("000000000000"),
-            "9F1A" to hexStringToByteArray("0840"),
-            "95" to hexStringToByteArray("0000000000"),
-            "5F2A" to hexStringToByteArray("0840"),
-            "9C" to hexStringToByteArray("00"), // 0x00: Goods/ Service, 0x09: CashBack, 0x01: Cash, 0x20: Refund, 0x30: Balance Inquiry
-            "9F45" to hexStringToByteArray("0000"),
-            "9F4C" to hexStringToByteArray("0000"),
-            "9F34" to hexStringToByteArray("000000"),
-            "9F40" to hexStringToByteArray("E0C8E06400"),
-            "9F1D" to hexStringToByteArray("0000000000"),
-            "9F33" to hexStringToByteArray("802800"),
-            "9F4E" to hexStringToByteArray("000000"),
-            "9F6D" to hexStringToByteArray("C8") // Amex C4 Contactless Reader Capabilities
-    )
-
-    private fun hexStringToByteArray(s: String): ByteArray {
-        val len = s.length
-        val data = ByteArray(len / 2)
-        for (i in 0 until len step 2) {
-            data[i / 2] = ((Character.digit(s[i], 16) shl 4) + Character.digit(s[i + 1], 16)).toByte()
-        }
-        return data
-    }
-
-    private fun generateUnpredictableNumber(): ByteArray {
-        val random = SecureRandom()
-        val un = ByteArray(4)
-        random.nextBytes(un)
-        return un
-    }
-
     fun parseDOL(pdol: ByteArray): List<DOL> {
         val pdolTags = mutableListOf<DOL>()
         var index = 0
@@ -86,26 +54,18 @@ object DOLParser {
         return pdolTags
     }
 
-
-    fun setDefaultValues(dolTags: List<DOL>) {
-        dolTags.forEach { tag ->
-            tag.defaultValue = (defaultValues[tag.tag] ?: "00".repeat(tag.length)) as ByteArray?
-        }
-    }
-
-    fun generateDOLdata(dolTags: List<DOL>?, needsCommandTemplate: Boolean): ByteArray {
+    fun generateDOLdata(dolTags: List<DOL>?, needsCommandTemplate: Boolean, pEMVRecord: EMVTransactionRecord): ByteArray {
         val commandDataField = StringBuilder()
         var length = 0
 
         if (dolTags != null) {
+            // Check AID is AMEX and 9F6E tag is exist from PDOL. If not exist it needs to update 9F35 tag value with (9F35 & 9F6D) operation for GPO
+            if (pEMVRecord.hasAmexRID() && !containsTag(dolTags, "9F6E")) {
+                pEMVRecord.setModifiedTerminalType()
+            }
             for (tag in dolTags) {
-                val defaultValueHex = defaultValues[tag.tag]?.joinToString("") { "%02X".format(it) }
-                val tagValue = when (tag.tag) {
-                    "9A" -> LocalDate.now().format(DateTimeFormatter.ofPattern("yyMMdd"))
-                    "9F21" -> LocalTime.now().format(DateTimeFormatter.ofPattern("HHmmss"))
-                    "9F37" -> generateUnpredictableNumber().joinToString("") { "%02X".format(it) }
-                    else -> tag.value?.joinToString("") { "%02X".format(it) } ?: defaultValueHex?.padStart(tag.length * 2, '0') ?: "0".repeat(tag.length * 2)
-                }
+                val defaultValueHex = pEMVRecord.getEMVTags()[tag.tag]?.joinToString("") { "%02X".format(it) }
+                val tagValue = tag.value?.joinToString("") { "%02X".format(it) } ?: defaultValueHex?.padStart(tag.length * 2, '0') ?: "0".repeat(tag.length * 2)
 
                 // Debugging: Print the tag and its value
                 println("Tag: ${tag.tag}, Value: $tagValue")
