@@ -43,15 +43,15 @@ object SignedDynamicApplicationDataDecoder {
         // Step 7: Concatenate from left to right the second to the sixth data elements in Table 22 (that
         //is, Signed Data Format through Pad Pattern), followed by the Unpredictable
         //Number.
-        val list = iccDynamicData.sliceArray(1 until 1 + (iccDynamicData.size - 21))
-        val unpredictableNumber = emvTags["9F27"] ?: throw IllegalArgumentException("Unpredictable Number is not generated")
+        val list = decryptedSDAD.sliceArray(1 until (decryptedSDAD.size - 21))
+        val unpredictableNumber = emvTags["9F37"] ?: throw IllegalArgumentException("Unpredictable Number is not generated")
         val concatenatedList = list + unpredictableNumber
 
         // Step 8: Generate hash from concatenation
         val hashConcat = MessageDigest.getInstance("SHA-1").digest(concatenatedList)
 
         // Step 9: Compare the hash result with the recovered hash result. They have to be equal
-        val hashCert = iccDynamicData.sliceArray((iccDynamicData.size - 21) until (iccDynamicData.size - 1))
+        val hashCert = decryptedSDAD.sliceArray((decryptedSDAD.size - 21) until (decryptedSDAD.size - 1))
         assert(hashCert.contentEquals(hashConcat))
 
         // Step 10: Concatenate from left to right the values of the following data elements
@@ -64,18 +64,16 @@ object SignedDynamicApplicationDataDecoder {
         // - The tags, lengths, and values of the data elements returned by the ICC in the
         //   response to the GENERATE AC command in the order they are returned,
         //   with the exception of the Signed Dynamic Application Data.
-        val pDOL = DOLParser.generateDOLdata(DOLParser.parseDOL(emvTags["9F38"]!!), false)
-        val cDOL1 = DOLParser.generateDOLdata(DOLParser.parseDOL(emvTags["8C"]!!), false)
+        val pDOL = DOLParser.generateDOLdata(DOLParser.parseDOL(emvTags["9F38"]!!), emvTags["4F"],false)
+        val cDOL1 = DOLParser.generateDOLdata(DOLParser.parseDOL(emvTags["8C"]!!), null,false)
         val responseMessageTemp2 = TLVParser.parseEx(emvTags["77"]!!)
         responseMessageTemp2.removeByTag("9F4B")
         val concatlist = pDOL + cDOL1 + hexTobyte(responseMessageTemp2.generate(false, filteredTags = false).uppercase())
 
-        val test11 = bytesToString(concatlist).uppercase()
         // Step 11: Apply the indicated hash algorithm (derived from the Hash Algorithm Indicator) to
         // the result of the concatenation of the previous step to produce the Transaction Data
         // Hash Code.
         val hashConcatList = MessageDigest.getInstance("SHA-1").digest(concatlist)
-        val test12 = bytesToString(hashConcatList).uppercase()
 
 
         // Step 12: Compare the calculated Transaction Data Hash Code from the previous step with
