@@ -2,7 +2,6 @@ package com.github.shham12.nfc_emv_adaptor.parser
 
 import com.github.shham12.nfc_emv_adaptor.iso7816emv.impl.CaPublicKey
 import com.github.shham12.nfc_emv_adaptor.iso7816emv.model.EMVTransactionRecord
-import com.github.shham12.nfc_emv_adaptor.util.BytesUtils
 import com.github.shham12.nfc_emv_adaptor.util.BytesUtils.bytesToString
 import java.math.BigInteger
 import java.security.MessageDigest
@@ -82,7 +81,9 @@ object ICCPublicKeyDecoder {
 
         // Step 11: Concatenate the Leftmost Digits of the ICC Public Key
         //and the ICC Public Key Remainder (if present) to obtain the ICC Public Key Modulus
-        val leftmostDigits = decryptedICC.sliceArray(21 until (issuerPublicKeyModulus.size - 43))
+        val ICCPubKeyLen = decryptedICC[19].toInt() and 0xFF
+        var leftmostDigits = decryptedICC.sliceArray(21 until 21 + (issuerPublicKeyModulus.size - 42))
+        leftmostDigits = leftmostDigits.sliceArray(0 until ICCPubKeyLen)
         val iccPublicKeyModulus = if (remainder != null) leftmostDigits + remainder else leftmostDigits
 
         if (isFailed){
