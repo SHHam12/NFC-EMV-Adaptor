@@ -2,7 +2,6 @@ package com.github.shham12.nfc_emv_adaptor.parser
 
 import com.github.shham12.nfc_emv_adaptor.iso7816emv.impl.CaPublicKey
 import com.github.shham12.nfc_emv_adaptor.iso7816emv.model.EMVTransactionRecord
-import com.github.shham12.nfc_emv_adaptor.util.BytesUtils.bytesToString
 import com.github.shham12.nfc_emv_adaptor.util.BytesUtils.hexTobyte
 import com.github.shham12.nfc_emv_adaptor.util.DOLParser
 import com.github.shham12.nfc_emv_adaptor.util.TLVParser
@@ -25,7 +24,8 @@ object SignedDynamicApplicationDataDecoder {
         //Step 2: The Recovered Data Trailer is equal to 'BC'
         var decryptedSDAD =
             ICCPublicKeyDecoder.performRSA(sdad, exponent, iccPublicKeyModulus)
-        assert(decryptedSDAD[iccPublicKeyModulus.size - 1] == 0xBC.toByte())
+        if (decryptedSDAD[iccPublicKeyModulus.size - 1] != 0xBC.toByte())
+            isFailed = true
 
         //Step 3: The Recovered Data Header is equal to '6A'
         if (decryptedSDAD[0] != 0x6A.toByte())
@@ -36,11 +36,11 @@ object SignedDynamicApplicationDataDecoder {
             isFailed = true
 
         // Step 5: Concatenation
-        var length = decryptedSDAD[3].toInt()
+        var length = decryptedSDAD[3].toInt() and 0xFF
         var iccDynamicData = decryptedSDAD.sliceArray(4 until 4 + length)
 
         // Step 6: Check CID from ICC Dynamic Data & from Gen AC
-        val iccDynamicNumLength = iccDynamicData[0].toInt()
+        val iccDynamicNumLength = iccDynamicData[0].toInt() and 0xFF
         val iccDynamicNum = iccDynamicData.sliceArray(1 until 1 + iccDynamicNumLength)
         val CID = iccDynamicData.sliceArray(1 + iccDynamicNumLength until 2 + iccDynamicNumLength)
         val appplicationCryptogram = iccDynamicData.sliceArray(2 + iccDynamicNumLength until iccDynamicData.size - 20)
@@ -84,7 +84,6 @@ object SignedDynamicApplicationDataDecoder {
         // the result of the concatenation of the previous step to produce the Transaction Data
         // Hash Code.
         val hashConcatList = MessageDigest.getInstance("SHA-1").digest(concatlist)
-
 
         // Step 12: Compare the calculated Transaction Data Hash Code from the previous step with
         //the Transaction Data Hash Code retrieved from the ICC Dynamic Data in step 5. If

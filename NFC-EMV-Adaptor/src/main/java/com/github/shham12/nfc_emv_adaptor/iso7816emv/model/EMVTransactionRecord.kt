@@ -120,6 +120,10 @@ class EMVTransactionRecord {
         return getAID().containsSequence(amex)
     }
 
+    fun hasAmexTermCap(): Boolean{
+        return emvTags.containsKey("9F6E")
+    }
+
     fun getIssuerPublicKeyRemainder(): ByteArray{
         return emvTags["92"] ?: byteArrayOf()
     }
