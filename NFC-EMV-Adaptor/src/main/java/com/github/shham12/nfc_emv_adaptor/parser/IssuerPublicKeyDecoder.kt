@@ -77,7 +77,7 @@ object IssuerPublicKeyDecoder {
             leftmostDigits = leftmostDigits.sliceArray(0 until issuerPubKeyLen)
         val issuerPublicKeyModulus = leftmostDigits + remainder
 
-        if (isFailed){
+        if (isFailed) {
             if (pEMVRecord.isCardSupportDDA() && !pEMVRecord.isCardSupportCDA())
                 pEMVRecord.setDDAFailed()
             else if (pEMVRecord.isCardSupportCDA())

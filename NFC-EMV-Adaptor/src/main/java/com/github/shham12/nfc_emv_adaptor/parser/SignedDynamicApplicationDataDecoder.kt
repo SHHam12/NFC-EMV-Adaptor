@@ -94,7 +94,7 @@ object SignedDynamicApplicationDataDecoder {
         pEMVRecord.addEMVTagValue("9F4C", iccDynamicData)
         pEMVRecord.addEMVTagValue("9F26", appplicationCryptogram)
 
-        if (isFailed){
+        if (isFailed) {
             if (pEMVRecord.isCardSupportDDA() && !pEMVRecord.isCardSupportCDA())
                 pEMVRecord.setDDAFailed()
             else if (pEMVRecord.isCardSupportCDA())

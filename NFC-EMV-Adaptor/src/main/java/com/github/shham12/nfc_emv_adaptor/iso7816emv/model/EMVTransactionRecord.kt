@@ -36,7 +36,8 @@ class EMVTransactionRecord {
 
     private val emvTags = mutableMapOf<String, ByteArray>()
 
-    private val amex = byteArrayOf(0xA0.toByte(), 0x00.toByte(), 0x00.toByte(), 0x00.toByte(), 0x25.toByte())
+    private val amex =
+        byteArrayOf(0xA0.toByte(), 0x00.toByte(), 0x00.toByte(), 0x00.toByte(), 0x25.toByte())
 
     private val cvmLimit = "000000010000".toByteArray()
 
@@ -51,11 +52,11 @@ class EMVTransactionRecord {
             emvTags["9F6D"] = "C8".toByteArray()
     }
 
-    fun getEMVTags(): MutableMap<String, ByteArray>{
+    fun getEMVTags(): MutableMap<String, ByteArray> {
         return emvTags
     }
 
-    fun clear(){
+    fun clear() {
         emvTags.clear()
         emvTags.putAll(defaultValues)
         setTransactionDate()
@@ -65,75 +66,81 @@ class EMVTransactionRecord {
             setFloorLimitExceed()
     }
 
-    fun setAmount1(value: ByteArray){
+    fun setAmount1(value: ByteArray) {
         emvTags["9F02"] = value
     }
 
-    fun setAmount2(value: ByteArray){
+    fun setAmount2(value: ByteArray) {
         emvTags["9F03"] = value
     }
 
-    fun setModifiedTerminalType(){
+    fun setModifiedTerminalType() {
         emvTags["9F35"] = byteArrayOf(emvTags["9F35"]!![0] or emvTags["9F6D"]!![0])
     }
 
-    fun setTransactionType(value: ByteArray){
+    fun setTransactionType(value: ByteArray) {
         emvTags["9C"] = value
     }
 
-    private fun setTransactionDate(){
-        addEMVTagValue("9A", LocalDate.now().format(DateTimeFormatter.ofPattern("yyMMdd")).toByteArray())
+    private fun setTransactionDate() {
+        addEMVTagValue(
+            "9A",
+            LocalDate.now().format(DateTimeFormatter.ofPattern("yyMMdd")).toByteArray()
+        )
     }
 
-    private fun setTransactionTime(){
-        addEMVTagValue("9F21", LocalTime.now().format(DateTimeFormatter.ofPattern("HHmmss")).toByteArray())
+    private fun setTransactionTime() {
+        addEMVTagValue(
+            "9F21",
+            LocalTime.now().format(DateTimeFormatter.ofPattern("HHmmss")).toByteArray()
+        )
     }
 
-    private fun setUnpredictableNumber(){
+    private fun setUnpredictableNumber() {
         addEMVTagValue("9F37", generateUnpredictableNumber())
     }
 
-    fun setAID(value: ByteArray){
+    fun setAID(value: ByteArray) {
         addEMVTagValue("4F", value)
     }
 
-    fun getAID(): ByteArray{
+    fun getAID(): ByteArray {
         return emvTags["4F"]!!
     }
 
-    fun setApplicationInterchangeProfile(value: ByteArray){
+    fun setApplicationInterchangeProfile(value: ByteArray) {
         addEMVTagValue("82", value)
     }
 
-    fun isCardSupportSDA(): Boolean{
+    fun isCardSupportSDA(): Boolean {
         return BytesUtils.matchBitByBitIndex(emvTags["82"]!![0], 6)
     }
 
-    fun isCardSupportDDA(): Boolean{
+    fun isCardSupportDDA(): Boolean {
         return BytesUtils.matchBitByBitIndex(emvTags["82"]!![0], 5)
     }
 
-    fun isCardSupportCDA(): Boolean{
+    fun isCardSupportCDA(): Boolean {
         return BytesUtils.matchBitByBitIndex(emvTags["82"]!![0], 0)
     }
 
-    fun isSupportODA(): Boolean{
+    fun isSupportODA(): Boolean {
         return isCardSupportSDA() && isCardSupportDDA() && isCardSupportCDA()
     }
 
-    fun hasAmexRID(): Boolean{
+    fun hasAmexRID(): Boolean {
         return getAID().containsSequence(amex)
     }
 
-    fun getIssuerPublicKeyRemainder(): ByteArray{
+    fun getIssuerPublicKeyRemainder(): ByteArray {
         return emvTags["92"] ?: byteArrayOf()
     }
 
-    fun getPAN(): ByteArray?{
+    fun getPAN(): ByteArray? {
         return emvTags["5A"]
     }
 
-    fun getIssuerPublicKeyExponent(): ByteArray{
+    fun getIssuerPublicKeyExponent(): ByteArray {
         return emvTags["9F32"] ?: byteArrayOf()
     }
 
@@ -150,58 +157,71 @@ class EMVTransactionRecord {
     }
 
     fun getStaticDataAuthenticationTagList(): ByteArray? {
-        return  emvTags["9F4A"]
+        return emvTags["9F4A"]
     }
 
-    fun getSignedDynamicApplicationData(): ByteArray?{
+    fun getSignedDynamicApplicationData(): ByteArray? {
         return emvTags["9F4B"]
     }
 
-    fun getSignedStaticApplicationData(): ByteArray?{
+    fun getSignedStaticApplicationData(): ByteArray? {
         return emvTags["93"]
     }
 
-    fun getCryptogramInformationData(): ByteArray?{
+    fun getCryptogramInformationData(): ByteArray? {
         return emvTags["9F27"]
     }
 
-    fun getUnpredictableNumber(): ByteArray{
+    fun getUnpredictableNumber(): ByteArray {
         return emvTags["9F37"]!!
     }
 
-    fun getPDOL(): ByteArray{
+    fun getPDOL(): ByteArray {
         return emvTags["9F38"]!!
     }
 
-    fun getCDOL1(): ByteArray{
+    fun getCDOL1(): ByteArray {
         return emvTags["8C"]!!
     }
 
-    fun setODANotPerformed(){
+    fun setODANotPerformed() {
         emvTags["95"]!![0] = setBit(emvTags["95"]!![0], 7, true)
     }
 
-    fun setSDAFailed(){
+    fun setSDAFailed() {
         emvTags["95"]!![0] = setBit(emvTags["95"]!![0], 6, true)
     }
 
-    fun setDDAFailed(){
+    fun setDDAFailed() {
         emvTags["95"]!![0] = setBit(emvTags["95"]!![0], 3, true)
     }
 
-    fun setCDAFailed(){
+    fun setCDAFailed() {
         emvTags["95"]!![0] = setBit(emvTags["95"]!![0], 2, true)
     }
 
-    fun getResponseMessageTemplate2(): ByteArray{
+    fun setSDASelected() {
+        emvTags["95"]!![0] = setBit(emvTags["95"]!![0], 1, true)
+    }
+
+    fun getResponseMessageTemplate2(): ByteArray {
         return emvTags["77"]!!
     }
 
-    fun addEMVTagValue(tag: String, value: ByteArray){
+    fun addEMVTagValue(tag: String, value: ByteArray) {
         emvTags[tag] = value
     }
 
-    private fun setFloorLimitExceed(){
+    fun checkAppVerNum() {
+        val cardAppVer = emvTags["9F08"]
+        val termAppVer = emvTags["9F09"]
+        if (cardAppVer != null && termAppVer != null) {
+            if (!cardAppVer.contentEquals(termAppVer))
+                emvTags["95"]!![1] = setBit(emvTags["95"]!![0], 7, true)
+        }
+    }
+
+    private fun setFloorLimitExceed() {
         emvTags["95"]!![3] = setBit(emvTags["95"]!![3], 7, true)
     }
 

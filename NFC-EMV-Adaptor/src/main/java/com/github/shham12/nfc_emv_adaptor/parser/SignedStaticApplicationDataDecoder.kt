@@ -63,7 +63,7 @@ object SignedStaticApplicationDataDecoder {
         val dataAuthenticationCode = decryptedSSAD.sliceArray(3 until  5)
         pEMVRecord.addEMVTagValue("9F45", dataAuthenticationCode)
 
-        if (isFailed){
+        if (isFailed) {
             pEMVRecord.setSDAFailed()
         }
     }

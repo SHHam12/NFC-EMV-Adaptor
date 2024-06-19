@@ -87,7 +87,7 @@ object ICCPublicKeyDecoder {
             leftmostDigits = leftmostDigits.sliceArray(0 until ICCPubKeyLen)
         val iccPublicKeyModulus = if (remainder != null) leftmostDigits + remainder else leftmostDigits
 
-        if (isFailed){
+        if (isFailed) {
             if (pEMVRecord.isCardSupportDDA() && !pEMVRecord.isCardSupportCDA())
                 pEMVRecord.setDDAFailed()
             else if (pEMVRecord.isCardSupportCDA())

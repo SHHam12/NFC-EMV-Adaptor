@@ -14,6 +14,7 @@ import com.github.shham12.nfc_emv_adaptor.iso7816emv.model.EMVTransactionRecord
 import com.github.shham12.nfc_emv_adaptor.parser.IProvider
 import com.github.shham12.nfc_emv_adaptor.parser.ResponseFormat1Parser
 import com.github.shham12.nfc_emv_adaptor.parser.SignedDynamicApplicationDataDecoder
+import com.github.shham12.nfc_emv_adaptor.parser.SignedStaticApplicationDataDecoder
 import com.github.shham12.nfc_emv_adaptor.util.BytesUtils.bytesToString
 import com.github.shham12.nfc_emv_adaptor.util.BytesUtils.containsSequence
 import com.github.shham12.nfc_emv_adaptor.util.BytesUtils.matchBitByBitIndex
@@ -142,7 +143,7 @@ class EMVParser(pProvider: IProvider, pContactLess: Boolean = true, capkXML: Str
         }
 
         // GenAC
-        if (CDOL1 != null){
+        if (CDOL1 != null) {
             var cdoldata = parseDOL(CDOL1)
             var CDOL1Data: ByteArray? = DOLParser.generateDOLdata(cdoldata, false, emvTransactionRecord)
             //Check 82 tag value whether it support CDA or not
@@ -150,11 +151,11 @@ class EMVParser(pProvider: IProvider, pContactLess: Boolean = true, capkXML: Str
             var GenAC: ByteArray? = provider!!.transceive(APDUCommand(CommandEnum.GENAC, p1Field, 0x00, CDOL1Data, 0).toBytes())
             if (GenAC != null) {
                 var response = APDUResponse(GenAC)
-                if (response.isSuccess()){
+                if (response.isSuccess()) {
                     TLVParser.parseEx(response.getData()).getTLVList().forEach { tlv: TLV ->
                         if (tlv.tag.getTag() == "77")
                             emvTransactionRecord.addEMVTagValue(tlv.tag.getTag().uppercase(), tlv.value)
-                        else if (tlv.tag.getTag() == "80"){
+                        else if (tlv.tag.getTag() == "80") {
                             var ParsedMsgTemp = ResponseFormat1Parser.parse(CommandEnum.GENAC, tlv.value)
                             ParsedMsgTemp.getTLVList().forEach { tlv: TLV ->
                                 if (!tlv.tag.isConstructed())
@@ -164,8 +165,8 @@ class EMVParser(pProvider: IProvider, pContactLess: Boolean = true, capkXML: Str
                         else if (!tlv.tag.isConstructed())
                             emvTransactionRecord.addEMVTagValue(tlv.tag.getTag().uppercase(), tlv.value)
                     }
+                    // Process Offline Data Authentication
                     if (emvTransactionRecord.isSupportODA()) {
-                        // Process Offline Data Authentication
                         val RID = bytesToString(
                             emvTransactionRecord.getAID().sliceArray(0 until 5)
                         ).uppercase()
@@ -175,7 +176,9 @@ class EMVParser(pProvider: IProvider, pContactLess: Boolean = true, capkXML: Str
                         if (capk != null) {
                             if (emvTransactionRecord.isCardSupportSDA() && !emvTransactionRecord.isCardSupportDDA() && !emvTransactionRecord.isCardSupportDDA()) {
                                 // Need to check 8F, 90, 93, 92, 9F32 tag are exist
+                                emvTransactionRecord.setSDASelected()
                                 // If fail, set SDA Failed Bit in TVR to 1
+                                SignedStaticApplicationDataDecoder.validate(emvTransactionRecord, capk)
                             } else if (emvTransactionRecord.isCardSupportDDA() && !emvTransactionRecord.isCardSupportCDA()) {
                                 // Need to check 8F, 90, 93, 92, 9F32, 9F46, 9F47, 9F48, 9F49 tag are exist
                                 // If fail, set DDA Failed Bit in TVR to 1
@@ -197,6 +200,8 @@ class EMVParser(pProvider: IProvider, pContactLess: Boolean = true, capkXML: Str
                     }
                     else
                         emvTransactionRecord.setODANotPerformed()
+                    // Application Version Number check for TVR B2b8
+                    emvTransactionRecord.checkAppVerNum()
                 }
             }
 
@@ -226,14 +231,14 @@ class EMVParser(pProvider: IProvider, pContactLess: Boolean = true, capkXML: Str
                 // Extract PCI Proprietary Template
                 var tlvData : TLV? = TLVParser.parseEx(response.getData()).searchByTag("BF0C");
 
-                if (tlvData != null){
+                if (tlvData != null) {
                     // Parse File Control Information (FCI) Issuer Discretionary Data
                     var appTemplates: TLVList? =  TLVParser.parseEx(tlvData.value);
 
-                    if (appTemplates != null){
+                    if (appTemplates != null) {
                         application = appTemplates.getTLVList()[0]
                         // if application Template is more than 2, select high priority AID
-                        if (appTemplates.getTLVList().size > 1){
+                        if (appTemplates.getTLVList().size > 1) {
                             appTemplates.getTLVList().forEach { tlv ->
                                 if (TLVParser.parseEx(tlv.value).searchByTag("87")?.value?.contains(0x01.toByte()) == true) // 87 Application Priority Indicator with length 1
                                     application = tlv
