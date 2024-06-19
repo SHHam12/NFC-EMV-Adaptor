@@ -154,35 +154,49 @@ class EMVParser(pProvider: IProvider, pContactLess: Boolean = true, capkXML: Str
                     TLVParser.parseEx(response.getData()).getTLVList().forEach { tlv: TLV ->
                         if (tlv.tag.getTag() == "77")
                             emvTransactionRecord.addEMVTagValue(tlv.tag.getTag().uppercase(), tlv.value)
+                        else if (tlv.tag.getTag() == "80"){
+                            var ParsedMsgTemp = ResponseFormat1Parser.parse(CommandEnum.GENAC, tlv.value)
+                            ParsedMsgTemp.getTLVList().forEach { tlv: TLV ->
+                                if (!tlv.tag.isConstructed())
+                                    emvTransactionRecord.addEMVTagValue(tlv.tag.getTag().uppercase(), tlv.value)
+                            }
+                        }
                         else if (!tlv.tag.isConstructed())
                             emvTransactionRecord.addEMVTagValue(tlv.tag.getTag().uppercase(), tlv.value)
                     }
-                    // Process Offline Data Authentication
-                    val RID = bytesToString(emvTransactionRecord.getAID().sliceArray(0 until 5)).uppercase()
-                    val capkIndex = bytesToString(emvTransactionRecord.getEMVTags()["8F"]!!).uppercase()
-                    val capk: CaPublicKey? = CAPKTable!!.findPublicKey(RID, capkIndex)
-                    if (capk != null) {
-                        if (emvTransactionRecord.isCardSupportSDA() && !emvTransactionRecord.isCardSupportDDA() && !emvTransactionRecord.isCardSupportDDA()) {
-                            // Need to check 8F, 90, 93, 92, 9F32 tag are exist
-                            // If fail, set SDA Failed Bit in TVR to 1
-                        } else if (emvTransactionRecord.isCardSupportDDA() && !emvTransactionRecord.isCardSupportCDA()) {
-                            // Need to check 8F, 90, 93, 92, 9F32, 9F46, 9F47, 9F48, 9F49 tag are exist
-                            // If fail, set DDA Failed Bit in TVR to 1
-                            SignedDynamicApplicationDataDecoder.retrievalApplicationCryptogram(
-                                emvTransactionRecord,
-                                capk
-                            )
-                        } else if (emvTransactionRecord.isCardSupportCDA()) {
-                            // Need to check 8F, 90, 93, 92, 9F32, 9F46, 9F47, 9F48, 9F49 tag are exist
-                            // If fail, set CDA Failed Bit in TVR to 1
-                            SignedDynamicApplicationDataDecoder.retrievalApplicationCryptogram(
-                                emvTransactionRecord,
-                                capk
-                            )
+                    if (emvTransactionRecord.isSupportODA()) {
+                        // Process Offline Data Authentication
+                        val RID = bytesToString(
+                            emvTransactionRecord.getAID().sliceArray(0 until 5)
+                        ).uppercase()
+                        val capkIndex =
+                            bytesToString(emvTransactionRecord.getEMVTags()["8F"]!!).uppercase()
+                        val capk: CaPublicKey? = CAPKTable!!.findPublicKey(RID, capkIndex)
+                        if (capk != null) {
+                            if (emvTransactionRecord.isCardSupportSDA() && !emvTransactionRecord.isCardSupportDDA() && !emvTransactionRecord.isCardSupportDDA()) {
+                                // Need to check 8F, 90, 93, 92, 9F32 tag are exist
+                                // If fail, set SDA Failed Bit in TVR to 1
+                            } else if (emvTransactionRecord.isCardSupportDDA() && !emvTransactionRecord.isCardSupportCDA()) {
+                                // Need to check 8F, 90, 93, 92, 9F32, 9F46, 9F47, 9F48, 9F49 tag are exist
+                                // If fail, set DDA Failed Bit in TVR to 1
+                                SignedDynamicApplicationDataDecoder.retrievalApplicationCryptogram(
+                                    emvTransactionRecord,
+                                    capk
+                                )
+                            } else if (emvTransactionRecord.isCardSupportCDA()) {
+                                // Need to check 8F, 90, 93, 92, 9F32, 9F46, 9F47, 9F48, 9F49 tag are exist
+                                // If fail, set CDA Failed Bit in TVR to 1
+                                SignedDynamicApplicationDataDecoder.retrievalApplicationCryptogram(
+                                    emvTransactionRecord,
+                                    capk
+                                )
+                            }
+                        } else {
+                            throw TLVException("Not supported AID")
                         }
-                    } else {
-                        throw TLVException("Not supported AID")
                     }
+                    else
+                        emvTransactionRecord.setODANotPerformed()
                 }
             }
 

@@ -28,7 +28,8 @@ class EMVTransactionRecord {
         "9F34" to "000000".toByteArray(),
         "9F40" to "E0C8E06400".toByteArray(),
         "9F1D" to "0000000000".toByteArray(),
-        "9F33" to "802800".toByteArray(),
+        "9F33" to "8028C8".toByteArray(),
+        "9F34" to "1F0000".toByteArray(),
         "9F4E" to "000000".toByteArray(),
         "9F6D" to "C0".toByteArray(), // CVM Required 0XC8 CVM Not Required 0XC0
     )
@@ -116,12 +117,12 @@ class EMVTransactionRecord {
         return BytesUtils.matchBitByBitIndex(emvTags["82"]!![0], 0)
     }
 
-    fun hasAmexRID(): Boolean{
-        return getAID().containsSequence(amex)
+    fun isSupportODA(): Boolean{
+        return isCardSupportSDA() && isCardSupportDDA() && isCardSupportCDA()
     }
 
-    fun hasAmexTermCap(): Boolean{
-        return emvTags.containsKey("9F6E")
+    fun hasAmexRID(): Boolean{
+        return getAID().containsSequence(amex)
     }
 
     fun getIssuerPublicKeyRemainder(): ByteArray{
@@ -156,6 +157,10 @@ class EMVTransactionRecord {
         return emvTags["9F4B"]
     }
 
+    fun getSignedStaticApplicationData(): ByteArray?{
+        return emvTags["93"]
+    }
+
     fun getCryptogramInformationData(): ByteArray?{
         return emvTags["9F27"]
     }
@@ -172,8 +177,12 @@ class EMVTransactionRecord {
         return emvTags["8C"]!!
     }
 
-    fun setODAPerformed(){
+    fun setODANotPerformed(){
         emvTags["95"]!![0] = setBit(emvTags["95"]!![0], 7, true)
+    }
+
+    fun setSDAFailed(){
+        emvTags["95"]!![0] = setBit(emvTags["95"]!![0], 6, true)
     }
 
     fun setDDAFailed(){

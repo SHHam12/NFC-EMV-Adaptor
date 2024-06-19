@@ -2,15 +2,12 @@ package com.github.shham12.nfc_emv_adaptor.iso7816emv.parser
 
 import com.github.shham12.nfc_emv_adaptor.iso7816emv.impl.CaPublicKey
 import com.github.shham12.nfc_emv_adaptor.iso7816emv.model.EMVTransactionRecord
-import com.github.shham12.nfc_emv_adaptor.parser.ICCPublicKeyDecoder
-import com.github.shham12.nfc_emv_adaptor.parser.IssuerPublicKeyDecoder
 import com.github.shham12.nfc_emv_adaptor.parser.SignedDynamicApplicationDataDecoder
-import com.github.shham12.nfc_emv_adaptor.util.BytesUtils
 import com.github.shham12.nfc_emv_adaptor.util.BytesUtils.toByteArray
 import org.junit.Assert
 import org.junit.Test
 
-class SignedDynamicApplicationDecoderTest {
+class SignedDynamicApplicationDataDecoderTest {
     @Test
     fun testRetrievalIssuerPublicKey() {
         // Sample data
