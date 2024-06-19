@@ -4,6 +4,8 @@ import kotlin.experimental.and
 import kotlin.experimental.inv
 import kotlin.experimental.or
 import kotlin.experimental.xor
+import java.text.SimpleDateFormat
+import java.util.Date
 
 
 object BytesUtils {
@@ -97,5 +99,17 @@ object BytesUtils {
             }
         }
         return 0 // Arrays are equal
+    }
+
+    fun compareDateByteArrays(date1: ByteArray, date2: ByteArray): Int {
+        val dateString1 = date1.toString(Charsets.UTF_8)
+        val dateString2 = date2.toString(Charsets.UTF_8)
+
+        val dateFormat = SimpleDateFormat("yyMMdd")
+
+        val parsedDate1: Date = dateFormat.parse(dateString1)
+        val parsedDate2: Date = dateFormat.parse(dateString2)
+
+        return parsedDate1.compareTo(parsedDate2)
     }
 }

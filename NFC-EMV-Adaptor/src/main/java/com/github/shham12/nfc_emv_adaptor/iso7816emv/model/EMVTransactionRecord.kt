@@ -2,7 +2,9 @@ package com.github.shham12.nfc_emv_adaptor.iso7816emv.model
 
 import com.github.shham12.nfc_emv_adaptor.util.BytesUtils
 import com.github.shham12.nfc_emv_adaptor.util.BytesUtils.compareByteArrays
+import com.github.shham12.nfc_emv_adaptor.util.BytesUtils.compareDateByteArrays
 import com.github.shham12.nfc_emv_adaptor.util.BytesUtils.containsSequence
+import com.github.shham12.nfc_emv_adaptor.util.BytesUtils.matchBitByBitIndex
 import com.github.shham12.nfc_emv_adaptor.util.BytesUtils.setBit
 import com.github.shham12.nfc_emv_adaptor.util.BytesUtils.toByteArray
 import java.security.SecureRandom
@@ -32,6 +34,7 @@ class EMVTransactionRecord {
         "9F34" to "1F0000".toByteArray(),
         "9F4E" to "000000".toByteArray(),
         "9F6D" to "C0".toByteArray(), // CVM Required 0XC8 CVM Not Required 0XC0
+        "9B" to "0000".toByteArray()
     )
 
     private val emvTags = mutableMapOf<String, ByteArray>()
@@ -41,33 +44,48 @@ class EMVTransactionRecord {
 
     private val cvmLimit = "000000010000".toByteArray()
 
+    private var exceedCVMLimit = false
+
     init {
+        resetEmvTags()
+    }
+
+    fun clear() {
+        resetEmvTags()
+    }
+
+    private fun resetEmvTags() {
+        emvTags.clear()
         emvTags.putAll(defaultValues)
         setTransactionDate()
         setTransactionTime()
         setUnpredictableNumber()
-        if (!emvTags["9F02"].contentEquals("000000000000".toByteArray()))
+        setFloorLimitIfNeeded()
+        checkAndSetCVMLimit()
+    }
+
+    private fun setFloorLimitIfNeeded() {
+        val zeroValue = "000000000000".toByteArray()
+        if (emvTags["9F02"]?.contentEquals(zeroValue) == false) {
             setFloorLimitExceed()
-        if (compareByteArrays(emvTags["9F02"]!!, cvmLimit) > 0)
+        }
+    }
+
+    private fun checkAndSetCVMLimit() {
+        val value9F02 = emvTags["9F02"]
+        if (value9F02 != null && compareByteArrays(value9F02, cvmLimit) > 0) {
             emvTags["9F6D"] = "C8".toByteArray()
+            exceedCVMLimit = true
+        }
     }
 
     fun getEMVTags(): MutableMap<String, ByteArray> {
         return emvTags
     }
 
-    fun clear() {
-        emvTags.clear()
-        emvTags.putAll(defaultValues)
-        setTransactionDate()
-        setTransactionTime()
-        setUnpredictableNumber()
-        if (!emvTags["9F02"].contentEquals("000000000000".toByteArray()))
-            setFloorLimitExceed()
-    }
-
     fun setAmount1(value: ByteArray) {
         emvTags["9F02"] = value
+        checkAndSetCVMLimit()
     }
 
     fun setAmount2(value: ByteArray) {
@@ -217,12 +235,99 @@ class EMVTransactionRecord {
         val termAppVer = emvTags["9F09"]
         if (cardAppVer != null && termAppVer != null) {
             if (!cardAppVer.contentEquals(termAppVer))
-                emvTags["95"]!![1] = setBit(emvTags["95"]!![0], 7, true)
+                emvTags["95"]!![1] = setBit(emvTags["95"]!![1], 7, true)
         }
+    }
+
+    fun checkAUC() {
+        val AUC = emvTags["9F07"]
+        val cardCountry = emvTags["9F57"]
+        val termCountry = emvTags["9F1A"]
+        if (AUC != null && cardCountry != null){
+            // For now only support  0x00 goods
+            if (cardCountry.contentEquals(termCountry)) {
+                if (!matchBitByBitIndex(AUC[0], 5))
+                    emvTags["95"]!![1] = setBit(emvTags["95"]!![1], 4, true)
+            } else {
+                if (!matchBitByBitIndex(AUC[0], 4))
+                    emvTags["95"]!![1] = setBit(emvTags["95"]!![1], 4, true)
+            }
+        }
+    }
+
+    private fun checkEffectiveDate() {
+        val effectiveDate = emvTags["5F25"]
+        if (effectiveDate != null) {
+            if (compareDateByteArrays(emvTags["9A"]!!, effectiveDate) < 0)
+                emvTags["95"]!![1] = setBit(emvTags["95"]!![1], 5, true)
+        }
+    }
+
+    private fun checkExpirationDate() {
+        val expireDate = emvTags["5F24"]
+        if (expireDate != null) {
+            if (compareDateByteArrays(emvTags["9A"]!!, expireDate) > 0)
+                emvTags["95"]!![1] = setBit(emvTags["95"]!![1], 6, true)
+        }
+    }
+
+    fun checkEffectiveAndExpirationDate() {
+        checkEffectiveDate()
+        checkExpirationDate()
+    }
+
+    fun setICCDataMissing() {
+        emvTags["95"]!![0] = setBit(emvTags["95"]!![0], 5, true)
     }
 
     private fun setFloorLimitExceed() {
         emvTags["95"]!![3] = setBit(emvTags["95"]!![3], 7, true)
+    }
+
+    private fun setCardholderVerificationFailed() {
+        emvTags["95"]!![2] = setBit(emvTags["95"]!![2], 7, true)
+    }
+
+    fun processCVM(){
+        // Check card support Customer Verification
+        val AIP = emvTags["82"]
+        val cvmList = emvTags["8E"]
+        if (AIP != null) {
+            if (cvmList != null) {
+                if (exceedCVMLimit) {
+                    if (matchBitByBitIndex(AIP[0], 4)) {
+                        // Support Cardholder verification
+                        // Only support signature
+                        if (cvmList.containsSequence("1E06".toByteArray())) {
+                            // Signature
+                            addEMVTagValue("9F34", "1E0000".toByteArray())
+                            setTSICardholderVerificationPerformed()
+                        } else if (cvmList.containsSequence("1F02".toByteArray())) {
+                            // No CVM required
+                            addEMVTagValue("9F34", "1F0002".toByteArray())
+                            setTSICardholderVerificationPerformed()
+                        } else {
+                            // No matching CVM
+                            addEMVTagValue("9F34", "3F0001".toByteArray())
+                            setTSICardholderVerificationPerformed()
+                            setCardholderVerificationFailed()
+                        }
+                    } else {
+                        // Not suuport Cardholder verification
+                        addEMVTagValue("9F34", "3F0000".toByteArray())
+                    }
+                } else {
+                    // No CVM performed
+                    addEMVTagValue("9F34", "3F0000".toByteArray())
+                }
+            } else {
+                setICCDataMissing()
+                addEMVTagValue("9F34", "3F0000".toByteArray())
+            }
+        }
+    }
+    private fun setTSICardholderVerificationPerformed() {
+        emvTags["9B"]!![0] = setBit(emvTags["9B"]!![0], 6, true)
     }
 
     private fun generateUnpredictableNumber(): ByteArray {

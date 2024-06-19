@@ -164,6 +164,9 @@ class EMVParser(pProvider: IProvider, pContactLess: Boolean = true, capkXML: Str
                         }
                         else if (!tlv.tag.isConstructed())
                             emvTransactionRecord.addEMVTagValue(tlv.tag.getTag().uppercase(), tlv.value)
+                        // Check 9F36 tag is exist
+                        if (!emvTransactionRecord.getEMVTags().containsKey("9F36"))
+                            emvTransactionRecord.setICCDataMissing()
                     }
                     // Process Offline Data Authentication
                     if (emvTransactionRecord.isSupportODA()) {
@@ -202,6 +205,10 @@ class EMVParser(pProvider: IProvider, pContactLess: Boolean = true, capkXML: Str
                         emvTransactionRecord.setODANotPerformed()
                     // Application Version Number check for TVR B2b8
                     emvTransactionRecord.checkAppVerNum()
+                    // Check Application Usage Control
+                    emvTransactionRecord.checkAUC()
+                    // Check Effective Date & Expiration Date
+                    emvTransactionRecord.checkEffectiveAndExpirationDate()
                 }
             }
 
