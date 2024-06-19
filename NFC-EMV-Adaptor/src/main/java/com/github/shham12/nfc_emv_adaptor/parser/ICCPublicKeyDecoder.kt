@@ -41,7 +41,6 @@ object ICCPublicKeyDecoder {
         val exp = pEMVRecord.getICCPublicKeyExponent() ?: throw IllegalArgumentException("ICC Public Key Exponent not found in Card")
         list += exp
 
-        val test0 = bytesToString(list).uppercase()
         val sdaTagList = pEMVRecord.getStaticDataAuthenticationTagList()
         if (sdaTagList != null) {
             val tag = bytesToString(sdaTagList)
@@ -62,15 +61,16 @@ object ICCPublicKeyDecoder {
         // Step 8: Verify that the Issuer Identifier matches the leftmost 3-8 PAN digits
         var pan = pEMVRecord.getPAN()
         if (pan != null) {
-            var panCert = decryptedICC.copyOfRange(2, 12)
+            var panStr = bytesToString(pan).uppercase()
+            var panCert = bytesToString(decryptedICC.copyOfRange(2, 12)).uppercase()
             for (i in 0..19) {
-                if (panCert[i] === 0xFF.toByte()) {
-                    panCert = panCert.sliceArray(0 until  i)
-                    pan = pan!!.sliceArray(0 until  i)
+                if (panCert[i] == 'F') {
+                    panCert = panCert.substring(0, i)
+                    panStr = panStr.substring(0, i)
                     break
                 }
             }
-            if (!pan.contentEquals(panCert))
+            if (!panStr.contentEquals(panCert))
                 isFailed = true
         }
 

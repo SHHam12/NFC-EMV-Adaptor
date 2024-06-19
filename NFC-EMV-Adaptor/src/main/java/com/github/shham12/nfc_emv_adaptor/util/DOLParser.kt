@@ -60,7 +60,7 @@ object DOLParser {
 
         if (dolTags != null) {
             // Check AID is AMEX and 9F6E tag is exist from PDOL. If not exist it needs to update 9F35 tag value with (9F35 & 9F6D) operation for GPO
-            if (pEMVRecord.hasAmexRID() && (!containsTag(dolTags, "9F6E") && !pEMVRecord.hasAmexTermCap())) {
+            if (pEMVRecord.hasAmexRID() && !containsTag(dolTags, "9F6E") && needsCommandTemplate) {
                 pEMVRecord.setModifiedTerminalType()
             }
             for (tag in dolTags) {

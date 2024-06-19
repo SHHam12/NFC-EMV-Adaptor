@@ -277,6 +277,19 @@ public class MainActivity extends AppCompatActivity {
             "        <PKIndex>C9</PKIndex>\n" +
             "        <RID>A000000025</RID>\n" +
             "      </CAPK>\n" +
+            "      <CAPK>\n" +
+            "        <ExtensionData />\n" +
+            "        <Algorithm>01</Algorithm>\n" +
+            "        <CheckSum>6BDA32B1AA171444C7E8F88075A74FBFE845765F</CheckSum>\n" +
+            "        <ExpiryDate>12312024</ExpiryDate>\n" +
+            "        <Exponent>03</Exponent>\n" +
+            "        <HashAlgorithm>01</HashAlgorithm>\n" +
+            "        <Issuer />\n" +
+            "        <KeyType />\n" +
+            "        <Modulus>C23ECBD7119F479C2EE546C123A585D697A7D10B55C2D28BEF0D299C01DC65420A03FE5227ECDECB8025FBC86EEBC1935298C1753AB849936749719591758C315FA150400789BB14FADD6EAE2AD617DA38163199D1BAD5D3F8F6A7A20AEF420ADFE2404D30B219359C6A4952565CCCA6F11EC5BE564B49B0EA5BF5B3DC8C5C6401208D0029C3957A8C5922CBDE39D3A564C6DEBB6BD2AEF91FC27BB3D3892BEB9646DCE2E1EF8581EFFA712158AAEC541C0BBB4B3E279D7DA54E45A0ACC3570E712C9F7CDF985CFAFD382AE13A3B214A9E8E1E71AB1EA707895112ABC3A97D0FCB0AE2EE5C85492B6CFD54885CDD6337E895CC70FB3255E3</Modulus>\n" +
+            "        <PKIndex>CA</PKIndex>\n" +
+            "        <RID>A000000025</RID>\n" +
+            "      </CAPK>\n" +
             "    </ArrayOfCAPK>\n" +
             "    <EMVKeyUpdID>0</EMVKeyUpdID>\n" +
             "  </CAPK>";

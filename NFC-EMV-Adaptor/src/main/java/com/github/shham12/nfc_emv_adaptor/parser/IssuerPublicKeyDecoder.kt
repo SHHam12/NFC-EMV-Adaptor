@@ -74,7 +74,9 @@ object IssuerPublicKeyDecoder {
 
         // Step 12: Concatenate the Leftmost Digits of the Issuer Public Key and the Issuer Public Key Remainder (if present)
         //          to obtain the Issuer Public Key Modulus
-        val leftmostDigits = cert.sliceArray(15 until 15 + (modulus.size - 36))
+        val IssuerPubKeyLen = cert[13].toInt() and 0xFF
+        var leftmostDigits = cert.sliceArray(15 until 15 + (modulus.size - 36))
+        leftmostDigits = leftmostDigits.sliceArray(0 until IssuerPubKeyLen)
         val issuerPublicKeyModulus = leftmostDigits + remainder
 
         if (isFailed){
