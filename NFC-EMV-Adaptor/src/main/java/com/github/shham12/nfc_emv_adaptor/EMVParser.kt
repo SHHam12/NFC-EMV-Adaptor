@@ -141,6 +141,8 @@ class EMVParser(pProvider: IProvider, pContactLess: Boolean = true, capkXML: Str
                     "CDOL2 " + CDOL2?.joinToString("") { "%02x".format(it) })
             }
         }
+        // Process Terminal Risk Management
+        emvTransactionRecord.processTermRiskManagement()
 
         // GenAC
         if (CDOL1 != null) {

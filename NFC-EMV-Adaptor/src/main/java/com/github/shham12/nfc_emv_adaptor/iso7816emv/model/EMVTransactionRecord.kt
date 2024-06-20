@@ -44,6 +44,8 @@ class EMVTransactionRecord {
 
     private val cvmLimit = "000000010000".toByteArray()
 
+    private val floorLimit = "000000000000".toByteArray()
+
     private var exceedCVMLimit = false
 
     init {
@@ -60,13 +62,11 @@ class EMVTransactionRecord {
         setTransactionDate()
         setTransactionTime()
         setUnpredictableNumber()
-        setFloorLimitIfNeeded()
         checkAndSetCVMLimit()
     }
 
     private fun setFloorLimitIfNeeded() {
-        val zeroValue = "000000000000".toByteArray()
-        if (emvTags["9F02"]?.contentEquals(zeroValue) == false) {
+        if (emvTags["9F02"]?.contentEquals(floorLimit) == false) {
             setFloorLimitExceed()
         }
     }
@@ -326,6 +326,24 @@ class EMVTransactionRecord {
             }
         }
     }
+
+    fun processTermRiskManagement(){
+        val AIP = emvTags["82"]
+        if (AIP != null) {
+            if (matchBitByBitIndex(AIP[0], 3)) {
+                setFloorLimitIfNeeded()
+            }
+            // Random Transaction Selection
+            // Readers must not support random transaction selection processing for contactless transactions.
+
+            // Velocity Checking
+            // Readers must not support velocity checking processing for contactless transactions.
+
+            // Exception File Checking
+            // Terminal Exception File/ Hotlist is not supported
+        }
+    }
+
     private fun setTSICardholderVerificationPerformed() {
         emvTags["9B"]!![0] = setBit(emvTags["9B"]!![0], 6, true)
     }

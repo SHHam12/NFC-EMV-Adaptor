@@ -324,15 +324,6 @@ class EMVTransactionRecordTest {
     }
 
     @Test
-    fun testSetFloorLimitExceed() {
-        emvTransactionRecord.clear()
-        val amount = "000000000100".toByteArray()
-        emvTransactionRecord.setAmount1(amount)
-        emvTransactionRecord.clear()
-        assertEquals(0x80.toByte(), emvTransactionRecord.getEMVTags()["95"]!![3] and 0x80.toByte())
-    }
-
-    @Test
     fun testProcessCVM_Signature() {
         emvTransactionRecord.clear()
         val AIP = byteArrayOf(0x10)  // Support CVM
@@ -417,5 +408,15 @@ class EMVTransactionRecordTest {
         emvTransactionRecord.clear()
         emvTransactionRecord.setICCDataMissing()
         assertEquals(0x20.toByte(), emvTransactionRecord.getEMVTags()["95"]!![0] and 0x20.toByte())
+    }
+
+    @Test
+    fun testProcessTermRiskManagement() {
+        emvTransactionRecord.clear()
+        val AIP = byteArrayOf(0x08)  // Support Terminal Risk Management
+        emvTransactionRecord.addEMVTagValue("82", AIP)
+        emvTransactionRecord.processTermRiskManagement()
+        // floor limit always exceeds need to check TVR B4b8
+        assertEquals(0x80.toByte(), emvTransactionRecord.getEMVTags()["95"]!![3] and 0x80.toByte())
     }
 }
