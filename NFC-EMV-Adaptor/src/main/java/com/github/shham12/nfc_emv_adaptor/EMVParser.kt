@@ -141,6 +141,17 @@ class EMVParser(pProvider: IProvider, pContactLess: Boolean = true, capkXML: Str
                     "CDOL2 " + CDOL2?.joinToString("") { "%02x".format(it) })
             }
         }
+        // Processing Restriction
+        // Application Version Number check for TVR B2b8
+        emvTransactionRecord.checkAppVerNum()
+        // Check Application Usage Control
+        emvTransactionRecord.checkAUC()
+        // Check Effective Date & Expiration Date
+        emvTransactionRecord.checkEffectiveAndExpirationDate()
+
+        // Cardholder Verification
+        emvTransactionRecord.processCVM()
+
         // Process Terminal Risk Management
         emvTransactionRecord.processTermRiskManagement()
 
@@ -205,12 +216,7 @@ class EMVParser(pProvider: IProvider, pContactLess: Boolean = true, capkXML: Str
                     }
                     else
                         emvTransactionRecord.setODANotPerformed()
-                    // Application Version Number check for TVR B2b8
-                    emvTransactionRecord.checkAppVerNum()
-                    // Check Application Usage Control
-                    emvTransactionRecord.checkAUC()
-                    // Check Effective Date & Expiration Date
-                    emvTransactionRecord.checkEffectiveAndExpirationDate()
+
                 }
             }
 

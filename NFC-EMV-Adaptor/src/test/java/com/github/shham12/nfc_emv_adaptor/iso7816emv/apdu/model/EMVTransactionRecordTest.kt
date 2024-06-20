@@ -419,4 +419,62 @@ class EMVTransactionRecordTest {
         // floor limit always exceeds need to check TVR B4b8
         assertEquals(0x80.toByte(), emvTransactionRecord.getEMVTags()["95"]!![3] and 0x80.toByte())
     }
+
+    @Test
+    fun testProcessTermActionAnalysis() {
+        emvTransactionRecord.clear()
+        emvTransactionRecord.processTermActionAnalysis()
+    }
+
+    @Test
+    fun testProcessTermActionAnalysisWithTvrAndArqc() {
+        emvTransactionRecord.clear()
+        emvTransactionRecord.addEMVTagValue("95", byteArrayOf(0x00, 0x00, 0x00, 0x80.toByte(), 0x00))
+        emvTransactionRecord.addEMVTagValue("9F0D", byteArrayOf(0x11, 0x11, 0x11, 0x11, 0x11))
+        emvTransactionRecord.addEMVTagValue("9F0E", byteArrayOf(0x00, 0x00, 0x00, 0x00, 0x00))
+        emvTransactionRecord.addEMVTagValue("9F0F", byteArrayOf(0x11, 0x11, 0x11, 0x91.toByte(), 0x11))
+        // Act
+        val result = emvTransactionRecord.processTermActionAnalysis()
+
+        // Assert
+        assertEquals(0x80.toByte(), result)
+    }
+
+    @Test
+    fun testProcessTermActionAnalysisWithTvrAndAac() {
+        emvTransactionRecord.clear()
+        emvTransactionRecord.addEMVTagValue("95", byteArrayOf(0x00, 0x00, 0x00, 0x00, 0x40))
+        emvTransactionRecord.addEMVTagValue("9F0D", byteArrayOf(0x00, 0x00, 0x00, 0x00, 0x00))
+        emvTransactionRecord.addEMVTagValue("9F0E", byteArrayOf(0x00, 0x00, 0x00, 0x00, 0x40))
+        emvTransactionRecord.addEMVTagValue("9F0F", byteArrayOf(0x00, 0x00, 0x00, 0x00, 0x00))
+        // Act
+        val result = emvTransactionRecord.processTermActionAnalysis()
+
+        // Assert
+        assertEquals(0x00.toByte(), result)
+    }
+
+    @Test
+    fun testProcessTermActionAnalysisWithTvrAndTc() {
+        emvTransactionRecord.clear()
+        emvTransactionRecord.addEMVTagValue("95", byteArrayOf(0x00, 0x00, 0x00, 0x00, 0x40))
+        emvTransactionRecord.addEMVTagValue("9F0D", byteArrayOf(0x00, 0x00, 0x00, 0x00, 0x00))
+        emvTransactionRecord.addEMVTagValue("9F0E", byteArrayOf(0x00, 0x00, 0x00, 0x00, 0x00))
+        emvTransactionRecord.addEMVTagValue("9F0F", byteArrayOf(0x00, 0x00, 0x00, 0x00, 0x00))
+        // Act
+        val result = emvTransactionRecord.processTermActionAnalysis()
+
+        // Assert
+        assertEquals(0x40.toByte(), result)
+    }
+
+    @Test
+    fun testProcessTermActionAnalysisWithoutTvr() {
+        emvTransactionRecord.clear()
+        // Act
+        val result = emvTransactionRecord.processTermActionAnalysis()
+
+        // Assert
+        assertEquals(0x40.toByte(), result)
+    }
 }

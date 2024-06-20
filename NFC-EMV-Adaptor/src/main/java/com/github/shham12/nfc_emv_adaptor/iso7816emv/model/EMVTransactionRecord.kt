@@ -354,4 +354,41 @@ class EMVTransactionRecord {
         random.nextBytes(un)
         return un
     }
+
+    fun processTermActionAnalysis(): Byte {
+        // Need to check 95 tag is exist
+        val tvr = emvTags["95"]
+        // Need to check Terminal Action Code Default, Denial, Default
+        val tacDenial = emvTags["9F0E"] ?: "0000000000".toByteArray()
+        val tacOnline = emvTags["9F0F"] ?: "0000000000".toByteArray()
+        val tacDefault = emvTags["9F0D"] ?: "0000000000".toByteArray()
+        // Need to check Issuer Action Code Default, Denial, Default
+        val iacDenial = emvTags["9F0E"] ?: "0000000000".toByteArray()
+        val iacOnline = emvTags["9F0F"] ?: "1111111111".toByteArray()
+        val iacDefault = emvTags["9F0D"] ?: "1111111111".toByteArray()
+        if (tvr != null) {
+            // TAC IAC should be paired
+            return when {
+                // Compare TAC IAC Denial
+                compareCodes(tvr, tacDenial) || compareCodes(tvr, iacDenial) -> 0x00.toByte() // AAC
+                // Compare TAC IAC Online
+                compareCodes(tvr, tacOnline) || compareCodes(tvr, iacOnline) -> 0X80.toByte() // ARQC
+                else -> 0x40.toByte() // TC
+            }
+        }
+        return 0x40.toByte()
+    }
+
+    private fun compareCodes(tvr: ByteArray, actionCodes: ByteArray): Boolean {
+        for (i in tvr.indices) {
+            for (bit in 0 until 8) {
+                val tvrBit = (tvr[i].toInt() shr bit) and 1
+                val actionBit = (actionCodes[i].toInt() shr bit) and 1
+                if (tvrBit == 1 && actionBit == 1) {
+                    return true
+                }
+            }
+        }
+        return false
+    }
 }
