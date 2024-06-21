@@ -102,8 +102,8 @@ object BytesUtils {
     }
 
     fun compareDateByteArrays(date1: ByteArray, date2: ByteArray): Int {
-        val dateString1 = date1.toString(Charsets.UTF_8)
-        val dateString2 = date2.toString(Charsets.UTF_8)
+        val dateString1 = bytesToString(date1)
+        val dateString2 = bytesToString(date2)
 
         val dateFormat = SimpleDateFormat("yyMMdd")
 

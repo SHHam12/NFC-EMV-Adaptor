@@ -155,20 +155,25 @@ class EMVParser(pProvider: IProvider, pContactLess: Boolean = true, capkXML: Str
         // Process Terminal Risk Management
         emvTransactionRecord.processTermRiskManagement()
 
+        // Process Terminal Action Analysis
+        val p1Field = emvTransactionRecord.processTermActionAnalysis()
+
         // GenAC
         if (CDOL1 != null) {
             var cdoldata = parseDOL(CDOL1)
             var CDOL1Data: ByteArray? = DOLParser.generateDOLdata(cdoldata, false, emvTransactionRecord)
             //Check 82 tag value whether it support CDA or not
-            var p1Field = if(emvTransactionRecord.isCardSupportCDA()) 0x90 else 0x80
             var GenAC: ByteArray? = provider!!.transceive(APDUCommand(CommandEnum.GENAC, p1Field, 0x00, CDOL1Data, 0).toBytes())
             if (GenAC != null) {
                 var response = APDUResponse(GenAC)
                 if (response.isSuccess()) {
                     TLVParser.parseEx(response.getData()).getTLVList().forEach { tlv: TLV ->
-                        if (tlv.tag.getTag() == "77")
-                            emvTransactionRecord.addEMVTagValue(tlv.tag.getTag().uppercase(), tlv.value)
-                        else if (tlv.tag.getTag() == "80") {
+                        if (tlv.tag.getTag() == "77") {
+                            emvTransactionRecord.addEMVTagValue(
+                                tlv.tag.getTag().uppercase(),
+                                tlv.value
+                            )
+                        } else if (tlv.tag.getTag() == "80") {
                             var ParsedMsgTemp = ResponseFormat1Parser.parse(CommandEnum.GENAC, tlv.value)
                             ParsedMsgTemp.getTLVList().forEach { tlv: TLV ->
                                 if (!tlv.tag.isConstructed())
@@ -177,10 +182,11 @@ class EMVParser(pProvider: IProvider, pContactLess: Boolean = true, capkXML: Str
                         }
                         else if (!tlv.tag.isConstructed())
                             emvTransactionRecord.addEMVTagValue(tlv.tag.getTag().uppercase(), tlv.value)
-                        // Check 9F36 tag is exist
-                        if (!emvTransactionRecord.getEMVTags().containsKey("9F36"))
-                            emvTransactionRecord.setICCDataMissing()
                     }
+
+                    // Check 9F36 tag is exist
+                    if (!emvTransactionRecord.getEMVTags().containsKey("9F36"))
+                        emvTransactionRecord.setICCDataMissing()
                     // Process Offline Data Authentication
                     if (emvTransactionRecord.isSupportODA()) {
                         val RID = bytesToString(
@@ -325,7 +331,6 @@ class EMVParser(pProvider: IProvider, pContactLess: Boolean = true, capkXML: Str
             if (record != null) {
                 for (i in record.startRecord..record.endRecord) {
                     val apdu = APDUCommand(CommandEnum.READ_RECORD, i , ((record.sfi shl 3) or 0x04), 0x00)
-//                    val apdu = APDUCommand(CommandEnum.READ_RECORD, i , ((record.sfi shl 3) or 0x04))
                     apduCommands.add(apdu)
                 }
             }

@@ -421,12 +421,6 @@ class EMVTransactionRecordTest {
     }
 
     @Test
-    fun testProcessTermActionAnalysis() {
-        emvTransactionRecord.clear()
-        emvTransactionRecord.processTermActionAnalysis()
-    }
-
-    @Test
     fun testProcessTermActionAnalysisWithTvrAndArqc() {
         emvTransactionRecord.clear()
         emvTransactionRecord.addEMVTagValue("95", byteArrayOf(0x00, 0x00, 0x00, 0x80.toByte(), 0x00))
@@ -437,7 +431,7 @@ class EMVTransactionRecordTest {
         val result = emvTransactionRecord.processTermActionAnalysis()
 
         // Assert
-        assertEquals(0x80.toByte(), result)
+        assertEquals(0x80, result)
     }
 
     @Test
@@ -451,7 +445,7 @@ class EMVTransactionRecordTest {
         val result = emvTransactionRecord.processTermActionAnalysis()
 
         // Assert
-        assertEquals(0x00.toByte(), result)
+        assertEquals(0x00, result)
     }
 
     @Test
@@ -465,7 +459,7 @@ class EMVTransactionRecordTest {
         val result = emvTransactionRecord.processTermActionAnalysis()
 
         // Assert
-        assertEquals(0x40.toByte(), result)
+        assertEquals(0x40, result)
     }
 
     @Test
@@ -475,6 +469,6 @@ class EMVTransactionRecordTest {
         val result = emvTransactionRecord.processTermActionAnalysis()
 
         // Assert
-        assertEquals(0x40.toByte(), result)
+        assertEquals(0x40, result)
     }
 }

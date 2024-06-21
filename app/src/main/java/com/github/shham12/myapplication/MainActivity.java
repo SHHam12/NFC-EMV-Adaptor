@@ -18,6 +18,7 @@ import com.github.shham12.nfc_emv_adaptor.parser.IProvider;
 import com.github.shham12.nfc_emv_adaptor.parser.impl.Provider;
 
 
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 public class MainActivity extends AppCompatActivity {
@@ -365,10 +366,16 @@ public class MainActivity extends AppCompatActivity {
                     Log.d(TAG, "IsoDep connection established");
                     IProvider temp = new Provider(isoDep);
                     EMVParser parser = new EMVParser(temp, true, CAPK);
-                    Map<String, byte[]> test = parser.readEmvCard();
+                    Map<String, byte[]> data = parser.readEmvCard();
 
                     isoDep.close();
                     Log.d(TAG, "IsoDep connection closed");
+
+                    String value50 = new String(data.get("50"));
+                    String value5A = data.containsKey("5A") ? bytesToHex(data.get("5A")) : "N/A";
+                    runOnUiThread(() -> {
+                        textView.setText("Application Label: " + value50 + "\nCard Number: " + value5A);
+                    });
                 } catch (Exception e) {
                     Log.e(TAG, "Error reading NFC tag", e);
                 }

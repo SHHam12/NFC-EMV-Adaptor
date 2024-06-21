@@ -143,7 +143,7 @@ class EMVTransactionRecord {
     }
 
     fun isSupportODA(): Boolean {
-        return isCardSupportSDA() && isCardSupportDDA() && isCardSupportCDA()
+        return isCardSupportSDA() || isCardSupportDDA() || isCardSupportCDA()
     }
 
     fun hasAmexRID(): Boolean {
@@ -355,7 +355,7 @@ class EMVTransactionRecord {
         return un
     }
 
-    fun processTermActionAnalysis(): Byte {
+    fun processTermActionAnalysis(): Int {
         // Need to check 95 tag is exist
         val tvr = emvTags["95"]
         // Need to check Terminal Action Code Default, Denial, Default
@@ -370,13 +370,18 @@ class EMVTransactionRecord {
             // TAC IAC should be paired
             return when {
                 // Compare TAC IAC Denial
-                compareCodes(tvr, tacDenial) || compareCodes(tvr, iacDenial) -> 0x00.toByte() // AAC
+                compareCodes(tvr, tacDenial) || compareCodes(tvr, iacDenial) -> 0x00 // AAC
                 // Compare TAC IAC Online
-                compareCodes(tvr, tacOnline) || compareCodes(tvr, iacOnline) -> 0X80.toByte() // ARQC
-                else -> 0x40.toByte() // TC
+                compareCodes(tvr, tacOnline) || compareCodes(tvr, iacOnline) -> {
+                    if (isCardSupportCDA())
+                        return 0x90 // set b5-b4 for ‘CDA signature requested’
+                    return 0X80 // ARQC
+                }
+                // Online only skip tac default & iac default
+                else -> 0x40 // TC
             }
         }
-        return 0x40.toByte()
+        return 0x40
     }
 
     private fun compareCodes(tvr: ByteArray, actionCodes: ByteArray): Boolean {
