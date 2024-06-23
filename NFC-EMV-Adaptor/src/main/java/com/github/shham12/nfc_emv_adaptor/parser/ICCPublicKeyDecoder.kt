@@ -55,8 +55,8 @@ object ICCPublicKeyDecoder {
         // Step 7: Compare recovered hash with generated hash
         val hashICC = decryptedICC.copyOfRange(decryptedICC.size - 21, decryptedICC.size - 1)
 
-        //if (!hashConcat.contentEquals(hashICC))
-//            isFailed = true
+        if (!hashConcat.contentEquals(hashICC))
+            isFailed = true
 
         // Step 8: Verify that the Issuer Identifier matches the leftmost 3-8 PAN digits
         var pan = pEMVRecord.getPAN()
