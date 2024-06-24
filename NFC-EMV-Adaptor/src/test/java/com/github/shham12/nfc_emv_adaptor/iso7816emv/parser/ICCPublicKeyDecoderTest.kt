@@ -45,6 +45,7 @@ class ICCPublicKeyDecoderTest {
         // Validate
         Assert.assertNotNull(result)
         // Add more assertions as needed to validate the returned result
+        Assert.assertTrue(emvRecord.getEMVTags()["95"]!![0].toInt() == 0x00)
     }
 
     @Test

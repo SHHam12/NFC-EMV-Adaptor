@@ -17,8 +17,8 @@ import kotlin.experimental.or
 class EMVTransactionRecord {
     private val defaultValues = mutableMapOf(
         "9F35" to "22".toByteArray(),
-        "9F6E" to "D8004000".toByteArray(),
-        "9F66" to "20404000".toByteArray(),
+        "9F6E" to "D8004000".toByteArray(), // Amex Enhanced Contactless Reader Capabilities
+        "9F66" to "23C00000".toByteArray(), // Need for VISA, Discover, Union Pay
         "9F02" to "000000000001".toByteArray(),
         "9F03" to "000000000000".toByteArray(),
         "9F1A" to "0840".toByteArray(),
@@ -45,6 +45,8 @@ class EMVTransactionRecord {
     private val cvmLimit = "000000010000".toByteArray()
 
     private val floorLimit = "000000000000".toByteArray()
+
+    private val defaultDDOL = "9F3704".toByteArray()
 
     private var exceedCVMLimit = false
 
@@ -382,6 +384,10 @@ class EMVTransactionRecord {
             }
         }
         return 0x40
+    }
+
+    fun getDDOL(): ByteArray{
+        return emvTags["9F49"]?: defaultDDOL
     }
 
     private fun compareCodes(tvr: ByteArray, actionCodes: ByteArray): Boolean {

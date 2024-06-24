@@ -69,78 +69,15 @@ class EMVParser(pProvider: IProvider, pContactLess: Boolean = true, capkXML: Str
     fun readEmvCard(): MutableMap<String, ByteArray> {
         emvTransactionRecord.clear()
 
-        var AFLData: ByteArray? = null
-        var CDOL1: ByteArray? = null
-        var CDOL2: ByteArray? = null
-
         // use PSE first
-        var application: ByteArray? = selectPSE(contactLess)
-        if (application != null) {
-            // Parse application and populate to emvTags
-            TLVParser.parseEx(application).getTLVList().forEach { tlv: TLV ->
-                if (!tlv.tag.isConstructed())
-                    emvTransactionRecord.addEMVTagValue(tlv.tag.getTag().uppercase(), tlv.value)
-            }
-        }
+        selectPSE(contactLess)
         // Select AID
         var pdol: ByteArray? = selectAID(emvTransactionRecord.getAID())
         // GPO
-        var ResponseMessageTemplate: ByteArray? = gpo(pdol)
-        // Extract data from Response Message Template
-
-        if (ResponseMessageTemplate != null) {
-            // Check data is Response Message Template 1
-            var MsgTemplate: TLV? = TLVParser.parseEx(ResponseMessageTemplate).searchByTag("80")
-
-            if (MsgTemplate != null) {
-                var ParsedMsgTemp = ResponseFormat1Parser.parse(CommandEnum.GPO, MsgTemplate.value)
-                ParsedMsgTemp.getTLVList().forEach { tlv: TLV ->
-                    if (!tlv.tag.isConstructed())
-                        emvTransactionRecord.addEMVTagValue(tlv.tag.getTag().uppercase(), tlv.value)
-                }
-                AFLData = ParsedMsgTemp.searchByTag("94")!!.value
-            } else {
-                AFLData = TLVParser.parseEx(ResponseMessageTemplate).searchByTag("94")?.value
-            }
-        }
-
+        var AFLData: ByteArray? = gpo(pdol)
         // Read Record
-        if (AFLData != null) {
-            Log.d("AFLData", AFLData.joinToString("") { "%02x".format(it) })
-            // Read Command
-            val aflRecords: List<AFL> = extractAFL(AFLData)
-            if (aflRecords.isEmpty()) {
-                Log.d("NFC-EMV-Adaptor", "No AFL records found")
-            } else {
-                // Generate Read Record commands from AFL records
-                val readRecordCommands: List<APDUCommand> =
-                    generateReadRecordCommands(aflRecords)
+        var CDOL1: ByteArray? = readRecord(AFLData)
 
-                // Send Read Record commands and handle responses
-                for (command in readRecordCommands) {
-                    var response = APDUResponse(provider!!.transceive(command.toBytes())!!)
-                    if (response.isSuccess()) {
-                        TLVParser.parseEx(response.getData()).getTLVList().forEach { tlv: TLV ->
-                            if (!tlv.tag.isConstructed())
-                                emvTransactionRecord.addEMVTagValue(
-                                    tlv.tag.getTag().uppercase(),
-                                    tlv.value
-                                )
-                        }
-                        if (TLVParser.parseEx(response.getData()).searchByTag("8C") != null)
-                            CDOL1 = TLVParser.parseEx(response.getData()).searchByTag("8C")?.value
-                        if (TLVParser.parseEx(response.getData()).searchByTag("8D") != null)
-                            CDOL2 = TLVParser.parseEx(response.getData()).searchByTag("8D")?.value
-                    }
-                }
-                Log.d(
-                    "NFC-EMV-Adaptor",
-                    "CDOL1 " + CDOL1?.joinToString("") { "%02x".format(it) })
-                Log.d(
-                    "NFC-EMV-Adaptor",
-                    "CDOL2 " + CDOL2?.joinToString("") { "%02x".format(it) })
-            }
-        }
         // Processing Restriction
         // Application Version Number check for TVR B2b8
         emvTransactionRecord.checkAppVerNum()
@@ -159,126 +96,91 @@ class EMVParser(pProvider: IProvider, pContactLess: Boolean = true, capkXML: Str
         val p1Field = emvTransactionRecord.processTermActionAnalysis()
 
         // GenAC
-        if (CDOL1 != null) {
-            var cdoldata = parseDOL(CDOL1)
-            var CDOL1Data: ByteArray? = DOLParser.generateDOLdata(cdoldata, false, emvTransactionRecord)
-            //Check 82 tag value whether it support CDA or not
-            var GenAC: ByteArray? = provider!!.transceive(APDUCommand(CommandEnum.GENAC, p1Field, 0x00, CDOL1Data, 0).toBytes())
-            if (GenAC != null) {
-                var response = APDUResponse(GenAC)
-                if (response.isSuccess()) {
-                    TLVParser.parseEx(response.getData()).getTLVList().forEach { tlv: TLV ->
-                        if (tlv.tag.getTag() == "77") {
-                            emvTransactionRecord.addEMVTagValue(
-                                tlv.tag.getTag().uppercase(),
-                                tlv.value
-                            )
-                        } else if (tlv.tag.getTag() == "80") {
-                            var ParsedMsgTemp = ResponseFormat1Parser.parse(CommandEnum.GENAC, tlv.value)
-                            ParsedMsgTemp.getTLVList().forEach { tlv: TLV ->
-                                if (!tlv.tag.isConstructed())
-                                    emvTransactionRecord.addEMVTagValue(tlv.tag.getTag().uppercase(), tlv.value)
-                            }
-                        }
-                        else if (!tlv.tag.isConstructed())
-                            emvTransactionRecord.addEMVTagValue(tlv.tag.getTag().uppercase(), tlv.value)
-                    }
+        generateAC(CDOL1, p1Field)
+        // Process Offline Data Authentication
+        if (emvTransactionRecord.isSupportODA()) {
+            val rid = bytesToString(emvTransactionRecord.getAID().sliceArray(0 until 5)).uppercase()
+            val capkIndex = bytesToString(emvTransactionRecord.getEMVTags()["8F"]!!).uppercase()
+            val capk = CAPKTable?.findPublicKey(rid, capkIndex)
 
-                    // Check 9F36 tag is exist
-                    if (!emvTransactionRecord.getEMVTags().containsKey("9F36"))
-                        emvTransactionRecord.setICCDataMissing()
-                    // Process Offline Data Authentication
-                    if (emvTransactionRecord.isSupportODA()) {
-                        val RID = bytesToString(
-                            emvTransactionRecord.getAID().sliceArray(0 until 5)
-                        ).uppercase()
-                        val capkIndex =
-                            bytesToString(emvTransactionRecord.getEMVTags()["8F"]!!).uppercase()
-                        val capk: CaPublicKey? = CAPKTable!!.findPublicKey(RID, capkIndex)
-                        if (capk != null) {
-                            if (emvTransactionRecord.isCardSupportSDA() && !emvTransactionRecord.isCardSupportDDA() && !emvTransactionRecord.isCardSupportDDA()) {
-                                // Need to check 8F, 90, 93, 92, 9F32 tag are exist
-                                emvTransactionRecord.setSDASelected()
-                                // If fail, set SDA Failed Bit in TVR to 1
-                                SignedStaticApplicationDataDecoder.validate(emvTransactionRecord, capk)
-                            } else if (emvTransactionRecord.isCardSupportDDA() && !emvTransactionRecord.isCardSupportCDA()) {
-                                // Need to check 8F, 90, 93, 92, 9F32, 9F46, 9F47, 9F48, 9F49 tag are exist
-                                // If fail, set DDA Failed Bit in TVR to 1
-                                SignedDynamicApplicationDataDecoder.retrievalApplicationCryptogram(
-                                    emvTransactionRecord,
-                                    capk
-                                )
-                            } else if (emvTransactionRecord.isCardSupportCDA()) {
-                                // Need to check 8F, 90, 93, 92, 9F32, 9F46, 9F47, 9F48, 9F49 tag are exist
-                                // If fail, set CDA Failed Bit in TVR to 1
-                                SignedDynamicApplicationDataDecoder.retrievalApplicationCryptogram(
-                                    emvTransactionRecord,
-                                    capk
-                                )
-                            }
-                        } else {
-                            throw TLVException("Not supported AID")
-                        }
+            capk?.let {
+                when {
+                    emvTransactionRecord.isCardSupportSDA() && !emvTransactionRecord.isCardSupportDDA() && !emvTransactionRecord.isCardSupportCDA() -> {
+                        emvTransactionRecord.setSDASelected()
+                        SignedStaticApplicationDataDecoder.validate(emvTransactionRecord, it)
                     }
-                    else
-                        emvTransactionRecord.setODANotPerformed()
-
+                    emvTransactionRecord.isCardSupportDDA() && !emvTransactionRecord.isCardSupportCDA() -> {
+                        SignedDynamicApplicationDataDecoder.retrievalApplicationCryptogram(emvTransactionRecord, it)
+                    }
+                    emvTransactionRecord.isCardSupportCDA() -> {
+                        SignedDynamicApplicationDataDecoder.retrievalApplicationCryptogram(emvTransactionRecord, it)
+                    }
                 }
-            }
-
+            } ?: throw TLVException("Not supported AID")
+        } else {
+            emvTransactionRecord.setODANotPerformed()
         }
+
 
         Log.d("TLVDATA", generateKeyValueString(emvTransactionRecord.getEMVTags()))
 
         return emvTransactionRecord.getEMVTags()
     }
 
+
+
+
     /**
      * Select AID with PSE directory
      *
      * @param pContactLess
      * boolean to indicate contact less mode
-     * @return card read
      */
-    private fun selectPSE(pContactLess: Boolean): ByteArray? {
+    private fun selectPSE(pContactLess: Boolean) {
         Log.d("APDUCommand", "SELECT PSE")
-        var application: TLV? = null
-        // Select the PPSE or PSE directory
-        var data = provider!!.transceive(APDUCommand(CommandEnum.SELECT, if (pContactLess) PPSE else PSE, 0).toBytes())
-        var response = APDUResponse(data!!)
+
+        val selectCommand = APDUCommand(CommandEnum.SELECT, if (pContactLess) PPSE else PSE, 0).toBytes()
+        val response = APDUResponse(provider!!.transceive(selectCommand)!!)
+
         if (response.isSuccess()) {
-            if (contactLess) {
+            if (pContactLess) {
                 // Parse PPSE data
-                // Extract PCI Proprietary Template
-                var tlvData : TLV? = TLVParser.parseEx(response.getData()).searchByTag("BF0C");
-
-                if (tlvData != null) {
+                TLVParser.parseEx(response.getData()).searchByTag("BF0C")?.let { tlvData ->
                     // Parse File Control Information (FCI) Issuer Discretionary Data
-                    var appTemplates: TLVList? =  TLVParser.parseEx(tlvData.value);
+                    TLVParser.parseEx(tlvData.value).getTLVList().let { appTemplates ->
+                        var application = appTemplates.firstOrNull()
 
-                    if (appTemplates != null) {
-                        application = appTemplates.getTLVList()[0]
-                        // if application Template is more than 2, select high priority AID
-                        if (appTemplates.getTLVList().size > 1) {
-                            appTemplates.getTLVList().forEach { tlv ->
-                                if (TLVParser.parseEx(tlv.value).searchByTag("87")?.value?.contains(0x01.toByte()) == true) // 87 Application Priority Indicator with length 1
+                        // If application Template is more than 2, select high priority AID
+                        if (appTemplates.size > 1) {
+                            appTemplates.forEach { tlv ->
+                                val priorityIndicator = TLVParser.parseEx(tlv.value).searchByTag("87")?.value
+                                if (priorityIndicator?.contains(0x01.toByte()) == true) {
                                     application = tlv
+                                }
+                            }
+                        }
+
+                        application?.let{tlv ->
+                            tlv.value?.let{app ->
+                                // Parse application and populate to emvTags
+                                TLVParser.parseEx(app).getTLVList().forEach { tlv: TLV ->
+                                    if (!tlv.tag.isConstructed())
+                                        emvTransactionRecord.addEMVTagValue(tlv.tag.getTag().uppercase(), tlv.value)
+                                }
                             }
                         }
                     }
                 }
             }
         }
-
-        return application?.value
     }
 
     /**
      * Select AID with PSE directory
      *
      * @param pAID
-     * boolean to indicate contact less mode
-     * @return card read
+     *          AID data
+     * @return PDOL data
      */
     private fun selectAID(pAID: ByteArray?): ByteArray? {
         Log.d("APDUCommand", "SELECT AID")
@@ -302,35 +204,97 @@ class EMVParser(pProvider: IProvider, pContactLess: Boolean = true, capkXML: Str
      * Get Processing Options
      *
      * @param pPDOL
-     * boolean to indicate contact less mode
-     * @return card read
+     *          PDOL data
+     * @return AFL Data
      */
     private fun gpo(pPDOL: ByteArray?): ByteArray? {
         Log.d("APDUCommand", "GPO")
-        var pdoldata: List<DOL>? = null
-        if (pPDOL != null) {
-            pdoldata = DOLParser.parseDOL(pPDOL)
-        }
-        var data = provider!!.transceive(APDUCommand(CommandEnum.GPO, DOLParser.generateDOLdata(pdoldata, true, emvTransactionRecord), 0).toBytes())
-        var response = APDUResponse(data!!)
+        val pdolData: List<DOL>? = pPDOL?.let { parseDOL(it) }
+        val gpoData = APDUCommand(CommandEnum.GPO, DOLParser.generateDOLdata(pdolData, true, emvTransactionRecord), 0).toBytes()
+        val response = APDUResponse(provider!!.transceive(gpoData)!!)
+
         if (response.isSuccess()) {
-            TLVParser.parseEx(response.getData()).getTLVList().forEach { tlv: TLV ->
-                if (!tlv.tag.isConstructed())
+            TLVParser.parseEx(response.getData()).getTLVList().forEach { tlv ->
+                if (!tlv.tag.isConstructed()) {
                     emvTransactionRecord.addEMVTagValue(tlv.tag.getTag().uppercase(), tlv.value)
+                }
             }
+
             Log.d("NFC-EMV-Adaptor", response.getData().joinToString("") { "%02x".format(it) })
+
+            // Extract data from Response Message Template
+            val data = response.getData()
+            val msgTemplate = TLVParser.parseEx(data).searchByTag("80")
+
+            val aflData = msgTemplate?.let {
+                ResponseFormat1Parser.parse(CommandEnum.GPO, it.value).apply {
+                    getTLVList().forEach { tlv ->
+                        if (!tlv.tag.isConstructed()) {
+                            emvTransactionRecord.addEMVTagValue(tlv.tag.getTag().uppercase(), tlv.value)
+                        }
+                    }
+                }.searchByTag("94")?.value
+            } ?: TLVParser.parseEx(data).searchByTag("94")?.value
+
+            return aflData
+        } else if (response.isInvalidated()) {
+            throw TLVException("Try another interface")
         }
 
-        return response.getData()
+        return null
     }
 
-    private fun generateReadRecordCommands(aflRecords: List<AFL?>): List<APDUCommand> {
+    /**
+     * Read Record
+     *
+     * @param pAFL
+     *          AFL Data
+     * @return CDOL1 data
+     */
+    private fun readRecord(pAFL: ByteArray?): ByteArray? {
+        var cdol1: ByteArray? = null
+        pAFL?.let { data ->
+            Log.d("AFLData", data.joinToString("") { "%02x".format(it) })
+
+            // Read Command
+            val aflRecords: List<AFL> = extractAFL(data)
+            if (aflRecords.isEmpty()) {
+                Log.d("NFC-EMV-Adaptor", "No AFL records found")
+            } else {
+                // Generate Read Record commands from AFL records
+                val readRecordCommands: List<APDUCommand> = generateReadRecordCommands(aflRecords)
+
+                // Send Read Record commands and handle responses
+                for (command in readRecordCommands) {
+                    val response = APDUResponse(provider!!.transceive(command.toBytes())!!)
+                    if (response.isSuccess()) {
+                        TLVParser.parseEx(response.getData()).getTLVList().forEach { tlv ->
+                            if (!tlv.tag.isConstructed()) {
+                                emvTransactionRecord.addEMVTagValue(tlv.tag.getTag().uppercase(), tlv.value)
+                            }
+                        }
+                        TLVParser.parseEx(response.getData()).searchByTag("8C")?.value?.let { value ->
+                            cdol1 = value
+                            Log.d("NFC-EMV-Adaptor", "CDOL1 ${cdol1?.joinToString("") { "%02x".format(it) }}")
+                        }
+                        TLVParser.parseEx(response.getData()).searchByTag("8D")?.value?.let { value ->
+                            Log.d("NFC-EMV-Adaptor", "CDOL2 ${value?.joinToString("") { "%02x".format(it) }}")
+                        }
+                    }
+                }
+
+            }
+        }
+        return cdol1
+    }
+
+    private fun generateReadRecordCommands(pAFLRecords: List<AFL?>): List<APDUCommand> {
         val apduCommands: MutableList<APDUCommand> = ArrayList()
 
-        for (record in aflRecords) {
-            if (record != null) {
-                for (i in record.startRecord..record.endRecord) {
-                    val apdu = APDUCommand(CommandEnum.READ_RECORD, i , ((record.sfi shl 3) or 0x04), 0x00)
+        for (record in pAFLRecords) {
+            record?.let { rec ->
+                for (i in rec.startRecord..rec.endRecord) {
+                    val apdu = APDUCommand(CommandEnum.READ_RECORD, i, (rec.sfi shl 3) or 0x04, 0x00)
                     apduCommands.add(apdu)
                 }
             }
@@ -348,24 +312,89 @@ class EMVParser(pProvider: IProvider, pContactLess: Boolean = true, capkXML: Str
      */
     private fun extractAFL(pAFL: ByteArray): List<AFL> {
         val aflRecords = mutableListOf<AFL>()
-        // Extract AFL data (ignoring status bytes at the end)
         var index = 0 // Typically the data starts after the first four bytes
+
         while (index < pAFL.size - 2) {
-            val record : AFL =
-                AFL(
-                    (pAFL.get(index).toInt() shr 3) and 0x1F,
-                    pAFL.get(index + 1).toInt() and 0xFF,
-                    pAFL.get(index + 2).toInt() and 0xFF,
-                    pAFL.get(index + 3).toInt() and 0xFF
-                )
-            Log.d(
-                "AFLRecord",
-                record.sfi.toString() + " " + record.startRecord + " " + record.endRecord + " " + record.offlineRecords
-            )
+            val sfi = (pAFL[index].toInt() shr 3) and 0x1F
+            val startRecord = pAFL[index + 1].toInt() and 0xFF
+            val endRecord = pAFL[index + 2].toInt() and 0xFF
+            val offlineRecords = pAFL[index + 3].toInt() and 0xFF
+
+            val record = AFL(sfi, startRecord, endRecord, offlineRecords)
+
+            Log.d("AFLRecord", "$sfi $startRecord $endRecord $offlineRecords")
             aflRecords.add(record)
             index += 4 // Move to the next AFL entry
         }
+
         return aflRecords
+    }
+
+    /**
+     * Generate Application Cryptogram
+     *
+     * @param pCDOL1
+     *            CDOL1 data
+     * @param pP1Field
+     *            p1 for APDU Command
+     * @return list of AFL
+     */
+    private fun generateAC(pCDOL1: ByteArray?, pP1Field: Int) {
+        pCDOL1?.let { cdol1 ->
+            val cdolData = parseDOL(cdol1)
+            val cdol1Data = DOLParser.generateDOLdata(cdolData, false, emvTransactionRecord)
+
+            val genACResponse = provider!!.transceive(APDUCommand(CommandEnum.GENAC, pP1Field, 0x00, cdol1Data, 0).toBytes())?.let { APDUResponse(it) }
+
+            genACResponse?.takeIf { it.isSuccess() }?.let { response ->
+                TLVParser.parseEx(response.getData()).getTLVList().forEach { tlv ->
+                    when (tlv.tag.getTag()) {
+                        "77" -> emvTransactionRecord.addEMVTagValue(tlv.tag.getTag().uppercase(), tlv.value)
+                        "80" -> {
+                            ResponseFormat1Parser.parse(CommandEnum.GENAC, tlv.value).getTLVList().forEach { innerTlv ->
+                                if (!innerTlv.tag.isConstructed()) {
+                                    emvTransactionRecord.addEMVTagValue(innerTlv.tag.getTag().uppercase(), innerTlv.value)
+                                }
+                            }
+                        }
+                        else -> {
+                            if (!tlv.tag.isConstructed()) {
+                                emvTransactionRecord.addEMVTagValue(tlv.tag.getTag().uppercase(), tlv.value)
+                            }
+                        }
+                    }
+                }
+
+                // Check 9F36 tag existence
+                if (!emvTransactionRecord.getEMVTags().containsKey("9F36")) {
+                    emvTransactionRecord.setICCDataMissing()
+                }
+
+//                // Process Offline Data Authentication
+//                if (emvTransactionRecord.isSupportODA()) {
+//                    val rid = bytesToString(emvTransactionRecord.getAID().sliceArray(0 until 5)).uppercase()
+//                    val capkIndex = bytesToString(emvTransactionRecord.getEMVTags()["8F"]!!).uppercase()
+//                    val capk = CAPKTable?.findPublicKey(rid, capkIndex)
+//
+//                    capk?.let {
+//                        when {
+//                            emvTransactionRecord.isCardSupportSDA() && !emvTransactionRecord.isCardSupportDDA() && !emvTransactionRecord.isCardSupportCDA() -> {
+//                                emvTransactionRecord.setSDASelected()
+//                                SignedStaticApplicationDataDecoder.validate(emvTransactionRecord, it)
+//                            }
+//                            emvTransactionRecord.isCardSupportDDA() && !emvTransactionRecord.isCardSupportCDA() -> {
+//                                SignedDynamicApplicationDataDecoder.retrievalApplicationCryptogram(emvTransactionRecord, it)
+//                            }
+//                            emvTransactionRecord.isCardSupportCDA() -> {
+//                                SignedDynamicApplicationDataDecoder.retrievalApplicationCryptogram(emvTransactionRecord, it)
+//                            }
+//                        }
+//                    } ?: throw TLVException("Not supported AID")
+//                } else {
+//                    emvTransactionRecord.setODANotPerformed()
+//                }
+            }
+        }
     }
 
     private fun generateKeyValueString(byteArrayDict: Map<String, ByteArray>): String {

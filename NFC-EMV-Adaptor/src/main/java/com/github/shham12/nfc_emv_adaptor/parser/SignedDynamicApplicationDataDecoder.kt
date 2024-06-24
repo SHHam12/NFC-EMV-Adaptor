@@ -2,6 +2,7 @@ package com.github.shham12.nfc_emv_adaptor.parser
 
 import com.github.shham12.nfc_emv_adaptor.iso7816emv.impl.CaPublicKey
 import com.github.shham12.nfc_emv_adaptor.iso7816emv.model.EMVTransactionRecord
+import com.github.shham12.nfc_emv_adaptor.util.BytesUtils.bytesToString
 import com.github.shham12.nfc_emv_adaptor.util.BytesUtils.hexTobyte
 import com.github.shham12.nfc_emv_adaptor.util.Cryptogram
 import com.github.shham12.nfc_emv_adaptor.util.DOLParser
@@ -27,6 +28,7 @@ object SignedDynamicApplicationDataDecoder {
         if (decryptedSDAD[iccPublicKeyModulus.size - 1] != 0xBC.toByte())
             isFailed = true
 
+        val test01 = bytesToString(decryptedSDAD).uppercase()
         //Step 3: The Recovered Data Header is equal to '6A'
         if (decryptedSDAD[0] != 0x6A.toByte())
             isFailed = true
