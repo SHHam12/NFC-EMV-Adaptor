@@ -20,5 +20,10 @@ enum class CommandEnum(val cla: Int, val ins: Int, val p1: Int, val p2: Int) {
     /**
      * GENERATE APPLICATION CRYPTOGRAM
      */
-    GENAC(0x80, 0xAE, 0x00, 0x00);
+    GENAC(0x80, 0xAE, 0x00, 0x00),
+
+    /**
+     * INTERNAL AUTHENTICATE
+     */
+    INTERNALAUTH(0x00, 0x88, 0x00, 0x00);
 }

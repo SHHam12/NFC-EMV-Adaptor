@@ -9,22 +9,15 @@ import com.github.shham12.nfc_emv_adaptor.iso7816emv.apdu.APDUResponse
 import com.github.shham12.nfc_emv_adaptor.iso7816emv.model.AFL
 import com.github.shham12.nfc_emv_adaptor.iso7816emv.model.DOL
 import com.github.shham12.nfc_emv_adaptor.iso7816emv.enum.CommandEnum
-import com.github.shham12.nfc_emv_adaptor.iso7816emv.impl.CaPublicKey
 import com.github.shham12.nfc_emv_adaptor.iso7816emv.model.EMVTransactionRecord
 import com.github.shham12.nfc_emv_adaptor.parser.IProvider
 import com.github.shham12.nfc_emv_adaptor.parser.ResponseFormat1Parser
 import com.github.shham12.nfc_emv_adaptor.parser.SignedDynamicApplicationDataDecoder
 import com.github.shham12.nfc_emv_adaptor.parser.SignedStaticApplicationDataDecoder
 import com.github.shham12.nfc_emv_adaptor.util.BytesUtils.bytesToString
-import com.github.shham12.nfc_emv_adaptor.util.BytesUtils.containsSequence
-import com.github.shham12.nfc_emv_adaptor.util.BytesUtils.matchBitByBitIndex
 import com.github.shham12.nfc_emv_adaptor.util.DOLParser
-import com.github.shham12.nfc_emv_adaptor.util.DOLParser.containsTag
 import com.github.shham12.nfc_emv_adaptor.util.DOLParser.parseDOL
-import com.github.shham12.nfc_emv_adaptor.util.DOLParser.updateDOLValue
-import com.github.shham12.nfc_emv_adaptor.util.TLVList
 import com.github.shham12.nfc_emv_adaptor.util.TLVParser
-import kotlin.experimental.or
 
 
 class EMVParser(pProvider: IProvider, pContactLess: Boolean = true, capkXML: String) {
@@ -52,12 +45,12 @@ class EMVParser(pProvider: IProvider, pContactLess: Boolean = true, capkXML: Str
      */
     private var contactLess = pContactLess
 
-    private var CAPKTable: CaPublicKeyTable? = null
+    private var capkTable: CaPublicKeyTable? = null
 
     private var emvTransactionRecord = EMVTransactionRecord()
 
     init {
-        CAPKTable = CaPublicKeyTable(capkXML)
+        capkTable = CaPublicKeyTable(capkXML)
     }
 
     /**
@@ -74,9 +67,9 @@ class EMVParser(pProvider: IProvider, pContactLess: Boolean = true, capkXML: Str
         // Select AID
         var pdol: ByteArray? = selectAID(emvTransactionRecord.getAID())
         // GPO
-        var AFLData: ByteArray? = gpo(pdol)
+        var aflData: ByteArray? = gpo(pdol)
         // Read Record
-        var CDOL1: ByteArray? = readRecord(AFLData)
+        var cdol1: ByteArray? = readRecord(aflData)
 
         // Processing Restriction
         // Application Version Number check for TVR B2b8
@@ -96,12 +89,12 @@ class EMVParser(pProvider: IProvider, pContactLess: Boolean = true, capkXML: Str
         val p1Field = emvTransactionRecord.processTermActionAnalysis()
 
         // GenAC
-        generateAC(CDOL1, p1Field)
+        generateAC(cdol1, p1Field)
         // Process Offline Data Authentication
         if (emvTransactionRecord.isSupportODA()) {
             val rid = bytesToString(emvTransactionRecord.getAID().sliceArray(0 until 5)).uppercase()
             val capkIndex = bytesToString(emvTransactionRecord.getEMVTags()["8F"]!!).uppercase()
-            val capk = CAPKTable?.findPublicKey(rid, capkIndex)
+            val capk = capkTable?.findPublicKey(rid, capkIndex)
 
             capk?.let {
                 when {
@@ -110,7 +103,10 @@ class EMVParser(pProvider: IProvider, pContactLess: Boolean = true, capkXML: Str
                         SignedStaticApplicationDataDecoder.validate(emvTransactionRecord, it)
                     }
                     emvTransactionRecord.isCardSupportDDA() && !emvTransactionRecord.isCardSupportCDA() -> {
-                        SignedDynamicApplicationDataDecoder.retrievalApplicationCryptogram(emvTransactionRecord, it)
+                        if (emvTransactionRecord.getEMVTags().containsKey("9F69"))
+                            SignedDynamicApplicationDataDecoder.validatefDDA(emvTransactionRecord, it)
+                        else
+                            SignedDynamicApplicationDataDecoder.retrievalApplicationCryptogram(emvTransactionRecord, it)
                     }
                     emvTransactionRecord.isCardSupportCDA() -> {
                         SignedDynamicApplicationDataDecoder.retrievalApplicationCryptogram(emvTransactionRecord, it)
@@ -126,9 +122,6 @@ class EMVParser(pProvider: IProvider, pContactLess: Boolean = true, capkXML: Str
 
         return emvTransactionRecord.getEMVTags()
     }
-
-
-
 
     /**
      * Select AID with PSE directory
@@ -239,7 +232,8 @@ class EMVParser(pProvider: IProvider, pContactLess: Boolean = true, capkXML: Str
             return aflData
         } else if (response.isInvalidated()) {
             throw TLVException("Try another interface")
-        }
+        } else
+            throw TLVException(bytesToString(response.toBytes()).uppercase())
 
         return null
     }
@@ -369,30 +363,6 @@ class EMVParser(pProvider: IProvider, pContactLess: Boolean = true, capkXML: Str
                 if (!emvTransactionRecord.getEMVTags().containsKey("9F36")) {
                     emvTransactionRecord.setICCDataMissing()
                 }
-
-//                // Process Offline Data Authentication
-//                if (emvTransactionRecord.isSupportODA()) {
-//                    val rid = bytesToString(emvTransactionRecord.getAID().sliceArray(0 until 5)).uppercase()
-//                    val capkIndex = bytesToString(emvTransactionRecord.getEMVTags()["8F"]!!).uppercase()
-//                    val capk = CAPKTable?.findPublicKey(rid, capkIndex)
-//
-//                    capk?.let {
-//                        when {
-//                            emvTransactionRecord.isCardSupportSDA() && !emvTransactionRecord.isCardSupportDDA() && !emvTransactionRecord.isCardSupportCDA() -> {
-//                                emvTransactionRecord.setSDASelected()
-//                                SignedStaticApplicationDataDecoder.validate(emvTransactionRecord, it)
-//                            }
-//                            emvTransactionRecord.isCardSupportDDA() && !emvTransactionRecord.isCardSupportCDA() -> {
-//                                SignedDynamicApplicationDataDecoder.retrievalApplicationCryptogram(emvTransactionRecord, it)
-//                            }
-//                            emvTransactionRecord.isCardSupportCDA() -> {
-//                                SignedDynamicApplicationDataDecoder.retrievalApplicationCryptogram(emvTransactionRecord, it)
-//                            }
-//                        }
-//                    } ?: throw TLVException("Not supported AID")
-//                } else {
-//                    emvTransactionRecord.setODANotPerformed()
-//                }
             }
         }
     }

@@ -9,7 +9,7 @@ import org.junit.Test
 
 class SignedDynamicApplicationDataDecoderTest {
     @Test
-    fun testRetrievalIssuerPublicKey() {
+    fun testRetrievalAC() {
         // Sample data
         val emvRecord = EMVTransactionRecord()
         emvRecord.addEMVTagValue("90", ("20DF7FF4B9968169B50DABED606B2FA12A0A26ED0A9791F5FE16965AC3A3AC60924B" +
@@ -58,5 +58,58 @@ class SignedDynamicApplicationDataDecoderTest {
         // Validate
         // Add more assertions as needed to validate the returned result
         Assert.assertTrue(emvRecord.getEMVTags()["9F26"].contentEquals("ED226DCD3FF7DFAB".toByteArray()))
+    }
+
+    @Test
+    fun testValidatefDDA() {
+        // Sample data
+        val emvRecord = EMVTransactionRecord()
+        emvRecord.addEMVTagValue("90", ("04D6DCA77E2DDFB5600A9DDE4EA22391BF4AF337F2FB994191E0397074D535E8ABD27F4" +
+                "3906ADDD45F01540198EF233C9D4CC898AD56A956A966D7385855866813F5E929FB72FAE5E440642EB1EEA30D80C3E6D281" +
+                "E0E6FB516B251DD75C01D59C71782827391F89D8FFD9E6EA302CBE1BC986BEA0365C36F7A6DA9FFD80F4D0FF9ED89DD5159" +
+                "A5B003C786A111794FD93923D6CED154D354EA7F04E4A48761A74D9FC184848F1C633CE5ADF549635BD").toByteArray())
+        emvRecord.addEMVTagValue("92", "85AADF043FAA3848ED869D6EB3D970F4AC08A97474278842C85584E34B6FACC07207BC41".toByteArray())
+        emvRecord.addEMVTagValue("9F32", "03".toByteArray())
+        emvRecord.addEMVTagValue("5A", "4761731000000043".toByteArray())
+        emvRecord.addEMVTagValue("9F46", ("8C30F9F0DF9858741EBE22B7EF1A22CD7BBC5E4E6CCAE122D9EF9E7201057C11E5ABF1" +
+                "8FF4260BE7920795065534FB261B82E9F0BE167C473BA1777AE45510BD66B8B499BB41336E3E83DFD35C37BC26DB3C8566C5" +
+                "49CE29F565E6BE0D94512ECE5F6DD8468019610B4FFF9CE484C417E973A39A9D417E49C7BF19F542ACB8DA519736F6149BA7" +
+                "D4BE132F0CF78EB9283547345A3B1F2F6D77C3D909D2ECEBBCDCF25447B44F2457B06CFCDE96AC686F").toByteArray())
+        emvRecord.addEMVTagValue("9F47", "03".toByteArray())
+        emvRecord.addEMVTagValue("9F32", "03".toByteArray())
+        emvRecord.addEMVTagValue("9F37", "F01E4788".toByteArray())
+        emvRecord.addEMVTagValue("82", "2000".toByteArray())
+        emvRecord.addEMVTagValue("9F4B", ("93E59E7F20B9A2095C7CD80189FE739C61B7EE79FC3286AD684B2C1DBFCAE11E80A260" +
+                "8B305BFAC88EE47240EC242BAAD1CA408925381E7AF9F89BDD672B9007603564FD89764080DF4AAC20515C64973D1EDDCE95" +
+                "FB087377C2DAF52BCC333BAC5D064CC5DB615E7BBF560635CEA3EB").toByteArray())
+        emvRecord.addEMVTagValue("9F37", "F01E4788".toByteArray())
+        emvRecord.addEMVTagValue("9F38", "9F3501".toByteArray())
+        emvRecord.addEMVTagValue("9F10", "06020103A40002".toByteArray())
+        emvRecord.addEMVTagValue("9F36", "0002".toByteArray())
+        emvRecord.addEMVTagValue("9F27", "80".toByteArray())
+        emvRecord.addEMVTagValue("8C", "9F02069F03069F1A0295055F2A029A039C019F3704".toByteArray())
+        emvRecord.addEMVTagValue("77", ("9F2701809F360200029F4B700BE989C0E4C6E26455F9CE7CD0DFDA1EC11BE4A252747863EE27" +
+                "17469387D8228223F2419ACF0D6231C61A5CC3B4B3084AEBF1F448E2A13C75D12817C9AB324FB9010380561BC4C30A9CC56E1DD7" +
+                "FA12CC7853C847DF5E96EAAF16A9ADAFCDAB15F412DFB3BD02A8C83C2470D8F0E1B29F100706020103A40002").toByteArray())
+        emvRecord.addEMVTagValue("4F", "A000000025".toByteArray())
+        emvRecord.addEMVTagValue("9A", "240625".toByteArray())
+        emvRecord.addEMVTagValue("95", "0000008000".toByteArray())
+        emvRecord.addEMVTagValue("9F69", "0108BC7B2B7800".toByteArray())
+
+        val caPublicKey = CaPublicKey(
+            rid = "A000000003",
+            index = "92",
+            exponent = "03",
+            modulus = "996AF56F569187D09293C14810450ED8EE3357397B18A2458EFAA92DA3B6DF6514EC060195318FD43BE9B8F0CC669E3F844057CBDDF8BDA191BB64473BC8DC9A730DB8F6B4EDE3924186FFD9B8C7735789C23A36BA0B8AF65372EB57EA5D89E7D14E9C7B6B557460F10885DA16AC923F15AF3758F0F03EBD3C5C2C949CBA306DB44E6A2C076C5F67E281D7EF56785DC4D75945E491F01918800A9E2DC66F60080566CE0DAF8D17EAD46AD8E30A247C9F"
+        )
+
+        // Execute
+        SignedDynamicApplicationDataDecoder.validatefDDA(emvRecord, caPublicKey)
+
+        // Validate
+        // Add more assertions as needed to validate the returned result
+        Assert.assertTrue(emvRecord.getEMVTags()["9F4C"].contentEquals("020039".toByteArray()))
+
+        Assert.assertTrue(emvRecord.getEMVTags()["95"]!![0] == 0x00.toByte())
     }
 }

@@ -28,7 +28,6 @@ object SignedDynamicApplicationDataDecoder {
         if (decryptedSDAD[iccPublicKeyModulus.size - 1] != 0xBC.toByte())
             isFailed = true
 
-        val test01 = bytesToString(decryptedSDAD).uppercase()
         //Step 3: The Recovered Data Header is equal to '6A'
         if (decryptedSDAD[0] != 0x6A.toByte())
             isFailed = true
@@ -93,7 +92,7 @@ object SignedDynamicApplicationDataDecoder {
         if (!transactionHashData.contentEquals(hashConcatList))
             isFailed = true
 
-        pEMVRecord.addEMVTagValue("9F4C", iccDynamicData)
+        pEMVRecord.addEMVTagValue("9F4C", iccDynamicNum)
         pEMVRecord.addEMVTagValue("9F26", appplicationCryptogram)
 
         if (isFailed) {
@@ -101,6 +100,64 @@ object SignedDynamicApplicationDataDecoder {
                 pEMVRecord.setDDAFailed()
             else if (pEMVRecord.isCardSupportCDA())
                 pEMVRecord.setCDAFailed()
+        }
+    }
+
+    fun validatefDDA(pEMVRecord: EMVTransactionRecord, capk: CaPublicKey){
+        var isFailed = false
+
+        val iccPublicKeyModulus = ICCPublicKeyDecoder.retrievalICCPublicKeyModulus(pEMVRecord, capk)
+
+        val exponent = pEMVRecord.getICCPublicKeyExponent() ?: throw IllegalArgumentException("ICC Public Key Exponent not found in Card")
+
+        val sdad = pEMVRecord.getSignedDynamicApplicationData() ?: throw IllegalArgumentException("Signed Dynamic Application Data not found in Card")
+
+        //Step 1: ICC Public Key Certificate and Issuer Public Key Modulus have the same length
+        if (sdad.size != iccPublicKeyModulus.size)
+            isFailed = true
+
+        //Step 2: The Recovered Data Trailer is equal to 'BC'
+        var decryptedSDAD = Cryptogram.performRSA(sdad, exponent, iccPublicKeyModulus)
+        if (decryptedSDAD[iccPublicKeyModulus.size - 1] != 0xBC.toByte())
+            isFailed = true
+
+        //Step 3: The Recovered Data Header is equal to '6A'
+        if (decryptedSDAD[0] != 0x6A.toByte())
+            isFailed = true
+
+        //Step 4: The Signed Data Format is equal to '95' for online approval requests
+        if (decryptedSDAD[1] != 0x95.toByte())
+            isFailed = true
+
+        // Step 5: Concatenation
+        var length = decryptedSDAD[3].toInt() and 0xFF
+        var iccDynamicData = decryptedSDAD.sliceArray(4 until 4 + length)
+        var concatenatedList = decryptedSDAD.sliceArray(1 until decryptedSDAD.size - 21)
+        val dDOL = DOLParser.generateDOLdata(DOLParser.parseDOL(pEMVRecord.getDDOL(true)), false, pEMVRecord)
+        concatenatedList += dDOL
+        val cardAuthenticationRelatedData = pEMVRecord.getEMVTags()["9F69"]
+        cardAuthenticationRelatedData?. let {
+            concatenatedList += it
+        } ?: {
+            isFailed = true
+        }
+
+        // Step 6: Generate hash from concatenation
+        val hashConcat = MessageDigest.getInstance("SHA-1").digest(concatenatedList)
+
+        // Step 7: Compare the hash result with the recovered hash result. They have to be equal
+        val hashCert = decryptedSDAD.sliceArray((decryptedSDAD.size - 21) until (decryptedSDAD.size - 1))
+
+        if (!hashCert.contentEquals(hashConcat))
+            isFailed = true
+
+        if (!pEMVRecord.isCardSupportDDA())
+            isFailed = true
+
+        pEMVRecord.addEMVTagValue("9F4C", iccDynamicData)
+
+        if (isFailed) {
+            pEMVRecord.setDDAFailed()
         }
     }
 }

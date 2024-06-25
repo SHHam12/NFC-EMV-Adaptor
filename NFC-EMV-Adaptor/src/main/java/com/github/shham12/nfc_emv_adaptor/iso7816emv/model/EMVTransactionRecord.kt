@@ -48,6 +48,8 @@ class EMVTransactionRecord {
 
     private val defaultDDOL = "9F3704".toByteArray()
 
+    private val defaultDDOLfDDA = "9F37049F02065F2A02".toByteArray()
+
     private var exceedCVMLimit = false
 
     init {
@@ -386,8 +388,8 @@ class EMVTransactionRecord {
         return 0x40
     }
 
-    fun getDDOL(): ByteArray{
-        return emvTags["9F49"]?: defaultDDOL
+    fun getDDOL(isfDDA: Boolean): ByteArray{
+        return if (isfDDA) defaultDDOLfDDA else emvTags["9F49"]?: defaultDDOL
     }
 
     private fun compareCodes(tvr: ByteArray, actionCodes: ByteArray): Boolean {
