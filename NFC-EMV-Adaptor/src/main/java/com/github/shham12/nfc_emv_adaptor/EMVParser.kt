@@ -12,8 +12,6 @@ import com.github.shham12.nfc_emv_adaptor.iso7816emv.enum.CommandEnum
 import com.github.shham12.nfc_emv_adaptor.iso7816emv.model.EMVTransactionRecord
 import com.github.shham12.nfc_emv_adaptor.parser.IProvider
 import com.github.shham12.nfc_emv_adaptor.parser.ResponseFormat1Parser
-import com.github.shham12.nfc_emv_adaptor.parser.SignedDynamicApplicationDataDecoder
-import com.github.shham12.nfc_emv_adaptor.parser.SignedStaticApplicationDataDecoder
 import com.github.shham12.nfc_emv_adaptor.util.BytesUtils.bytesToString
 import com.github.shham12.nfc_emv_adaptor.util.DOLParser
 import com.github.shham12.nfc_emv_adaptor.util.DOLParser.parseDOL
@@ -72,12 +70,7 @@ class EMVParser(pProvider: IProvider, pContactLess: Boolean = true, capkXML: Str
         var cdol1: ByteArray? = readRecord(aflData)
 
         // Processing Restriction
-        // Application Version Number check for TVR B2b8
-        emvTransactionRecord.checkAppVerNum()
-        // Check Application Usage Control
-        emvTransactionRecord.checkAUC()
-        // Check Effective Date & Expiration Date
-        emvTransactionRecord.checkEffectiveAndExpirationDate()
+        emvTransactionRecord.processRestriction()
 
         // Cardholder Verification
         emvTransactionRecord.processCVM()
@@ -90,33 +83,11 @@ class EMVParser(pProvider: IProvider, pContactLess: Boolean = true, capkXML: Str
 
         // GenAC
         generateAC(cdol1, p1Field)
+
+        // Need to notify Card Read Successfully
+
         // Process Offline Data Authentication
-        if (emvTransactionRecord.isSupportODA()) {
-            val rid = bytesToString(emvTransactionRecord.getAID().sliceArray(0 until 5)).uppercase()
-            val capkIndex = bytesToString(emvTransactionRecord.getEMVTags()["8F"]!!).uppercase()
-            val capk = capkTable?.findPublicKey(rid, capkIndex)
-
-            capk?.let {
-                when {
-                    emvTransactionRecord.isCardSupportSDA() && !emvTransactionRecord.isCardSupportDDA() && !emvTransactionRecord.isCardSupportCDA() -> {
-                        emvTransactionRecord.setSDASelected()
-                        SignedStaticApplicationDataDecoder.validate(emvTransactionRecord, it)
-                    }
-                    emvTransactionRecord.isCardSupportDDA() && !emvTransactionRecord.isCardSupportCDA() -> {
-                        if (emvTransactionRecord.getEMVTags().containsKey("9F69"))
-                            SignedDynamicApplicationDataDecoder.validatefDDA(emvTransactionRecord, it)
-                        else
-                            SignedDynamicApplicationDataDecoder.retrievalApplicationCryptogram(emvTransactionRecord, it)
-                    }
-                    emvTransactionRecord.isCardSupportCDA() -> {
-                        SignedDynamicApplicationDataDecoder.retrievalApplicationCryptogram(emvTransactionRecord, it)
-                    }
-                }
-            } ?: throw TLVException("Not supported AID")
-        } else {
-            emvTransactionRecord.setODANotPerformed()
-        }
-
+        emvTransactionRecord.processODA(capkTable)
 
         Log.d("TLVDATA", generateKeyValueString(emvTransactionRecord.getEMVTags()))
 
@@ -357,11 +328,6 @@ class EMVParser(pProvider: IProvider, pContactLess: Boolean = true, capkXML: Str
                             }
                         }
                     }
-                }
-
-                // Check 9F36 tag existence
-                if (!emvTransactionRecord.getEMVTags().containsKey("9F36")) {
-                    emvTransactionRecord.setICCDataMissing()
                 }
             }
         }

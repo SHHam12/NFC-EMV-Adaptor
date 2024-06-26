@@ -1,6 +1,7 @@
 package com.github.shham12.nfc_emv_adaptor.iso7816emv.apdu.model
 
 import com.github.shham12.nfc_emv_adaptor.iso7816emv.model.EMVTransactionRecord
+import com.github.shham12.nfc_emv_adaptor.util.BytesUtils.bytesToString
 import com.github.shham12.nfc_emv_adaptor.util.BytesUtils.toByteArray
 import org.junit.Assert.*
 import org.junit.Before
@@ -23,24 +24,21 @@ class EMVTransactionRecordTest {
     fun testClear() {
         emvTransactionRecord.clear()
         val tags = emvTransactionRecord.getEMVTags()
-        assertEquals("22", String(tags["9F35"]!!))
-        assertEquals("D8004000", String(tags["9F6E"]!!))
-        assertEquals("20404000", String(tags["9F66"]!!))
-        assertEquals("000000000001", String(tags["9F02"]!!))
-        assertEquals("000000000000", String(tags["9F03"]!!))
-        assertEquals("0840", String(tags["9F1A"]!!))
-        assertEquals("0000000000", String(tags["95"]!!))
-        assertEquals("0840", String(tags["5F2A"]!!))
-        assertEquals("00", String(tags["9C"]!!))
-        assertEquals("0000", String(tags["9F45"]!!))
-        assertEquals("0000", String(tags["9F4C"]!!))
-        assertEquals("000000", String(tags["9F34"]!!))
-        assertEquals("E0C8E06400", String(tags["9F40"]!!))
-        assertEquals("0000000000", String(tags["9F1D"]!!))
-        assertEquals("8028C8", String(tags["9F33"]!!))
-        assertEquals("1F0000", String(tags["9F34"]!!))
-        assertEquals("000000", String(tags["9F4E"]!!))
-        assertEquals("C0", String(tags["9F6D"]!!))
+        assertEquals("22", bytesToString(tags["9F35"]!!).uppercase())
+        assertEquals("D8004000", bytesToString(tags["9F6E"]!!).uppercase())
+        assertEquals("23C00000", bytesToString(tags["9F66"]!!).uppercase())
+        assertEquals("000000000001", bytesToString(tags["9F02"]!!).uppercase())
+        assertEquals("000000000000", bytesToString(tags["9F03"]!!).uppercase())
+        assertEquals("0840", bytesToString(tags["9F1A"]!!).uppercase())
+        assertEquals("0840", bytesToString(tags["5F2A"]!!).uppercase())
+        assertEquals("00", bytesToString(tags["9C"]!!).uppercase())
+        assertEquals("000000", bytesToString(tags["9F34"]!!).uppercase())
+        assertEquals("E0C8E06400", bytesToString(tags["9F40"]!!).uppercase())
+        assertEquals("0000000000", bytesToString(tags["9F1D"]!!).uppercase())
+        assertEquals("8028C8", bytesToString(tags["9F33"]!!).uppercase())
+        assertEquals("000000", bytesToString(tags["9F34"]!!).uppercase())
+        assertEquals("000000", bytesToString(tags["9F4E"]!!).uppercase())
+        assertEquals("C0", bytesToString(tags["9F6D"]!!).uppercase())
     }
 
     @Test
@@ -237,41 +235,6 @@ class EMVTransactionRecordTest {
     }
 
     @Test
-    fun testSetODANotPerformed() {
-        emvTransactionRecord.clear()
-        emvTransactionRecord.setODANotPerformed()
-        assertEquals(0x80.toByte(), emvTransactionRecord.getEMVTags()["95"]!![0] and 0x80.toByte())
-    }
-
-    @Test
-    fun testSetSDAFailed() {
-        emvTransactionRecord.clear()
-        emvTransactionRecord.setSDAFailed()
-        assertEquals(0x40.toByte(), emvTransactionRecord.getEMVTags()["95"]!![0] and 0x40.toByte())
-    }
-
-    @Test
-    fun testSetDDAFailed() {
-        emvTransactionRecord.clear()
-        emvTransactionRecord.setDDAFailed()
-        assertEquals(0x08.toByte(), emvTransactionRecord.getEMVTags()["95"]!![0] and 0x08.toByte())
-    }
-
-    @Test
-    fun testSetCDAFailed() {
-        emvTransactionRecord.clear()
-        emvTransactionRecord.setCDAFailed()
-        assertEquals(0x04.toByte(), emvTransactionRecord.getEMVTags()["95"]!![0] and 0x04.toByte())
-    }
-
-    @Test
-    fun testSetSDASelected() {
-        emvTransactionRecord.clear()
-        emvTransactionRecord.setSDASelected()
-        assertEquals(0x02.toByte(), emvTransactionRecord.getEMVTags()["95"]!![0] and 0x02.toByte())
-    }
-
-    @Test
     fun testGetResponseMessageTemplate2() {
         val responseMessage = "1234567890".toByteArray()
         emvTransactionRecord.addEMVTagValue("77", responseMessage)
@@ -284,43 +247,6 @@ class EMVTransactionRecordTest {
         val value = "123456".toByteArray()
         emvTransactionRecord.addEMVTagValue(tag, value)
         assertTrue(emvTransactionRecord.getEMVTags()[tag]!!.contentEquals(value))
-    }
-
-    @Test
-    fun testCheckAppVerNum() {
-        emvTransactionRecord.clear()
-        val cardAppVer = "0102".toByteArray()
-        val termAppVer = "0103".toByteArray()
-        emvTransactionRecord.addEMVTagValue("9F08", cardAppVer)
-        emvTransactionRecord.addEMVTagValue("9F09", termAppVer)
-        emvTransactionRecord.checkAppVerNum()
-        assertEquals(0x80.toByte(), emvTransactionRecord.getEMVTags()["95"]!![1] and 0x80.toByte())
-    }
-
-    @Test
-    fun testCheckAUC() {
-        emvTransactionRecord.clear()
-        val AUC = byteArrayOf(0x00)
-        val cardCountry = "0840".toByteArray()
-        val termCountry = "0840".toByteArray()
-        emvTransactionRecord.addEMVTagValue("9F07", AUC)
-        emvTransactionRecord.addEMVTagValue("9F57", cardCountry)
-        emvTransactionRecord.addEMVTagValue("9F1A", termCountry)
-        emvTransactionRecord.checkAUC()
-        assertEquals(0x10.toByte(), emvTransactionRecord.getEMVTags()["95"]!![1] and 0x10.toByte())
-    }
-
-    @Test
-    fun testCheckEffectiveAndExpirationDate() {
-        emvTransactionRecord.clear()
-        val effectiveDate = LocalDate.now().plusDays(1).format(DateTimeFormatter.ofPattern("yyMMdd")).toByteArray()
-        val expireDate = LocalDate.now().minusDays(1).format(DateTimeFormatter.ofPattern("yyMMdd")).toByteArray()
-        emvTransactionRecord.addEMVTagValue("5F25", effectiveDate)
-        emvTransactionRecord.addEMVTagValue("5F24", expireDate)
-        emvTransactionRecord.addEMVTagValue("9A", LocalDate.now().format(DateTimeFormatter.ofPattern("yyMMdd")).toByteArray())
-        emvTransactionRecord.checkEffectiveAndExpirationDate()
-        assertEquals(0x20.toByte(), emvTransactionRecord.getEMVTags()["95"]!![1] and 0x20.toByte())
-        assertEquals(0x40.toByte(), emvTransactionRecord.getEMVTags()["95"]!![1] and 0x40.toByte())
     }
 
     @Test
@@ -404,13 +330,6 @@ class EMVTransactionRecordTest {
     }
 
     @Test
-    fun testSetICCDataMissing() {
-        emvTransactionRecord.clear()
-        emvTransactionRecord.setICCDataMissing()
-        assertEquals(0x20.toByte(), emvTransactionRecord.getEMVTags()["95"]!![0] and 0x20.toByte())
-    }
-
-    @Test
     fun testProcessTermRiskManagement() {
         emvTransactionRecord.clear()
         val AIP = byteArrayOf(0x08)  // Support Terminal Risk Management
@@ -423,7 +342,8 @@ class EMVTransactionRecordTest {
     @Test
     fun testProcessTermActionAnalysisWithTvrAndArqc() {
         emvTransactionRecord.clear()
-        emvTransactionRecord.addEMVTagValue("95", byteArrayOf(0x00, 0x00, 0x00, 0x80.toByte(), 0x00))
+        emvTransactionRecord.addEMVTagValue("82", byteArrayOf(0x18, 0x80.toByte()))
+        emvTransactionRecord.processTermRiskManagement()
         emvTransactionRecord.addEMVTagValue("9F0D", byteArrayOf(0x11, 0x11, 0x11, 0x11, 0x11))
         emvTransactionRecord.addEMVTagValue("9F0E", byteArrayOf(0x00, 0x00, 0x00, 0x00, 0x00))
         emvTransactionRecord.addEMVTagValue("9F0F", byteArrayOf(0x11, 0x11, 0x11, 0x91.toByte(), 0x11))
@@ -437,9 +357,10 @@ class EMVTransactionRecordTest {
     @Test
     fun testProcessTermActionAnalysisWithTvrAndAac() {
         emvTransactionRecord.clear()
-        emvTransactionRecord.addEMVTagValue("95", byteArrayOf(0x00, 0x00, 0x00, 0x00, 0x40))
+        emvTransactionRecord.addEMVTagValue("82", byteArrayOf(0x18, 0x80.toByte()))
+        emvTransactionRecord.processTermRiskManagement()
         emvTransactionRecord.addEMVTagValue("9F0D", byteArrayOf(0x00, 0x00, 0x00, 0x00, 0x00))
-        emvTransactionRecord.addEMVTagValue("9F0E", byteArrayOf(0x00, 0x00, 0x00, 0x00, 0x40))
+        emvTransactionRecord.addEMVTagValue("9F0E", byteArrayOf(0x00, 0x00, 0x00, 0x80.toByte(), 0x40))
         emvTransactionRecord.addEMVTagValue("9F0F", byteArrayOf(0x00, 0x00, 0x00, 0x00, 0x00))
         // Act
         val result = emvTransactionRecord.processTermActionAnalysis()

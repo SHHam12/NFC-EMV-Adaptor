@@ -1,8 +1,11 @@
 package com.github.shham12.nfc_emv_adaptor.iso7816emv.model
 
+import com.github.shham12.nfc_emv_adaptor.exception.TLVException
+import com.github.shham12.nfc_emv_adaptor.iso7816emv.CaPublicKeyTable
+import com.github.shham12.nfc_emv_adaptor.parser.SignedDynamicApplicationDataDecoder
+import com.github.shham12.nfc_emv_adaptor.parser.SignedStaticApplicationDataDecoder
 import com.github.shham12.nfc_emv_adaptor.util.BytesUtils
 import com.github.shham12.nfc_emv_adaptor.util.BytesUtils.compareByteArrays
-import com.github.shham12.nfc_emv_adaptor.util.BytesUtils.compareDateByteArrays
 import com.github.shham12.nfc_emv_adaptor.util.BytesUtils.containsSequence
 import com.github.shham12.nfc_emv_adaptor.util.BytesUtils.matchBitByBitIndex
 import com.github.shham12.nfc_emv_adaptor.util.BytesUtils.setBit
@@ -22,16 +25,12 @@ class EMVTransactionRecord {
         "9F02" to "000000000001".toByteArray(),
         "9F03" to "000000000000".toByteArray(),
         "9F1A" to "0840".toByteArray(),
-        "95" to "0000000000".toByteArray(),
         "5F2A" to "0840".toByteArray(),
         "9C" to "00".toByteArray(), // 0x00: Goods/ Service, 0x09: CashBack, 0x01: Cash, 0x20: Refund, 0x30: Balance Inquiry
-        "9F45" to "0000".toByteArray(),
-        "9F4C" to "0000".toByteArray(),
         "9F34" to "000000".toByteArray(),
         "9F40" to "E0C8E06400".toByteArray(),
         "9F1D" to "0000000000".toByteArray(),
         "9F33" to "8028C8".toByteArray(),
-        "9F34" to "1F0000".toByteArray(),
         "9F4E" to "000000".toByteArray(),
         "9F6D" to "C0".toByteArray(), // CVM Required 0XC8 CVM Not Required 0XC0
         "9B" to "0000".toByteArray()
@@ -49,6 +48,8 @@ class EMVTransactionRecord {
     private val defaultDDOL = "9F3704".toByteArray()
 
     private val defaultDDOLfDDA = "9F37049F02065F2A02".toByteArray()
+
+    private val tvr = TerminalVerificationResults()
 
     private var exceedCVMLimit = false
 
@@ -71,7 +72,7 @@ class EMVTransactionRecord {
 
     private fun setFloorLimitIfNeeded() {
         if (emvTags["9F02"]?.contentEquals(floorLimit) == false) {
-            setFloorLimitExceed()
+            tvr.setFloorLimitExceed()
         }
     }
 
@@ -84,6 +85,8 @@ class EMVTransactionRecord {
     }
 
     fun getEMVTags(): MutableMap<String, ByteArray> {
+        // Need to add TVR
+        addEMVTagValue("95", tvr.getValue())
         return emvTags
     }
 
@@ -206,90 +209,12 @@ class EMVTransactionRecord {
         return emvTags["8C"]!!
     }
 
-    fun setODANotPerformed() {
-        emvTags["95"]!![0] = setBit(emvTags["95"]!![0], 7, true)
-    }
-
-    fun setSDAFailed() {
-        emvTags["95"]!![0] = setBit(emvTags["95"]!![0], 6, true)
-    }
-
-    fun setDDAFailed() {
-        emvTags["95"]!![0] = setBit(emvTags["95"]!![0], 3, true)
-    }
-
-    fun setCDAFailed() {
-        emvTags["95"]!![0] = setBit(emvTags["95"]!![0], 2, true)
-    }
-
-    fun setSDASelected() {
-        emvTags["95"]!![0] = setBit(emvTags["95"]!![0], 1, true)
-    }
-
     fun getResponseMessageTemplate2(): ByteArray {
         return emvTags["77"]!!
     }
 
     fun addEMVTagValue(tag: String, value: ByteArray) {
         emvTags[tag] = value
-    }
-
-    fun checkAppVerNum() {
-        val cardAppVer = emvTags["9F08"]
-        val termAppVer = emvTags["9F09"]
-        if (cardAppVer != null && termAppVer != null) {
-            if (!cardAppVer.contentEquals(termAppVer))
-                emvTags["95"]!![1] = setBit(emvTags["95"]!![1], 7, true)
-        }
-    }
-
-    fun checkAUC() {
-        val AUC = emvTags["9F07"]
-        val cardCountry = emvTags["9F57"]
-        val termCountry = emvTags["9F1A"]
-        if (AUC != null && cardCountry != null){
-            // For now only support  0x00 goods
-            if (cardCountry.contentEquals(termCountry)) {
-                if (!matchBitByBitIndex(AUC[0], 5))
-                    emvTags["95"]!![1] = setBit(emvTags["95"]!![1], 4, true)
-            } else {
-                if (!matchBitByBitIndex(AUC[0], 4))
-                    emvTags["95"]!![1] = setBit(emvTags["95"]!![1], 4, true)
-            }
-        }
-    }
-
-    private fun checkEffectiveDate() {
-        val effectiveDate = emvTags["5F25"]
-        if (effectiveDate != null) {
-            if (compareDateByteArrays(emvTags["9A"]!!, effectiveDate) < 0)
-                emvTags["95"]!![1] = setBit(emvTags["95"]!![1], 5, true)
-        }
-    }
-
-    private fun checkExpirationDate() {
-        val expireDate = emvTags["5F24"]
-        if (expireDate != null) {
-            if (compareDateByteArrays(emvTags["9A"]!!, expireDate) > 0)
-                emvTags["95"]!![1] = setBit(emvTags["95"]!![1], 6, true)
-        }
-    }
-
-    fun checkEffectiveAndExpirationDate() {
-        checkEffectiveDate()
-        checkExpirationDate()
-    }
-
-    fun setICCDataMissing() {
-        emvTags["95"]!![0] = setBit(emvTags["95"]!![0], 5, true)
-    }
-
-    private fun setFloorLimitExceed() {
-        emvTags["95"]!![3] = setBit(emvTags["95"]!![3], 7, true)
-    }
-
-    private fun setCardholderVerificationFailed() {
-        emvTags["95"]!![2] = setBit(emvTags["95"]!![2], 7, true)
     }
 
     fun processCVM(){
@@ -314,7 +239,7 @@ class EMVTransactionRecord {
                             // No matching CVM
                             addEMVTagValue("9F34", "3F0001".toByteArray())
                             setTSICardholderVerificationPerformed()
-                            setCardholderVerificationFailed()
+                            tvr.setCardholderVerificationFailed()
                         }
                     } else {
                         // Not suuport Cardholder verification
@@ -325,7 +250,7 @@ class EMVTransactionRecord {
                     addEMVTagValue("9F34", "3F0000".toByteArray())
                 }
             } else {
-                setICCDataMissing()
+                tvr.setICCDataMissing()
                 addEMVTagValue("9F34", "3F0000".toByteArray())
             }
         }
@@ -360,32 +285,27 @@ class EMVTransactionRecord {
     }
 
     fun processTermActionAnalysis(): Int {
-        // Need to check 95 tag is exist
-        val tvr = emvTags["95"]
-        // Need to check Terminal Action Code Default, Denial, Default
-        val tacDenial = emvTags["9F0E"] ?: "0000000000".toByteArray()
-        val tacOnline = emvTags["9F0F"] ?: "0000000000".toByteArray()
-        val tacDefault = emvTags["9F0D"] ?: "0000000000".toByteArray()
-        // Need to check Issuer Action Code Default, Denial, Default
-        val iacDenial = emvTags["9F0E"] ?: "0000000000".toByteArray()
-        val iacOnline = emvTags["9F0F"] ?: "1111111111".toByteArray()
-        val iacDefault = emvTags["9F0D"] ?: "1111111111".toByteArray()
-        if (tvr != null) {
-            // TAC IAC should be paired
-            return when {
-                // Compare TAC IAC Denial
-                compareCodes(tvr, tacDenial) || compareCodes(tvr, iacDenial) -> 0x00 // AAC
-                // Compare TAC IAC Online
-                compareCodes(tvr, tacOnline) || compareCodes(tvr, iacOnline) -> {
-                    if (isCardSupportCDA())
-                        return 0x90 // set b5-b4 for ‘CDA signature requested’
-                    return 0X80 // ARQC
-                }
-                // Online only skip tac default & iac default
-                else -> 0x40 // TC
+        // Default values for TAC and IAC if not present in emvTags
+        val defaultTAC = "0000000000".toByteArray()
+        val defaultIAC = "1111111111".toByteArray()
+
+        // Terminal Action Codes
+        val tacDenial = emvTags["DF12"] ?: defaultTAC
+        val tacOnline = emvTags["DF12"] ?: defaultTAC
+        val tacDefault = emvTags["DF11"] ?: defaultTAC
+
+        // Issuer Action Codes
+        val iacDenial = emvTags["9F0E"] ?: defaultTAC
+        val iacOnline = emvTags["9F0F"] ?: defaultIAC
+        val iacDefault = emvTags["9F0D"] ?: defaultIAC
+        // Compare TAC and IAC codes
+        return when {
+            compareCodes(tvr.getValue(), tacDenial) || compareCodes(tvr.getValue(), iacDenial) -> 0x00 // AAC
+            compareCodes(tvr.getValue(), tacOnline) || compareCodes(tvr.getValue(), iacOnline) -> {
+                if (isCardSupportCDA()) 0x90 else 0x80 // ARQC or CDA signature requested
             }
+            else -> 0x40 // TC
         }
-        return 0x40
     }
 
     fun getDDOL(isfDDA: Boolean): ByteArray{
@@ -394,14 +314,66 @@ class EMVTransactionRecord {
 
     private fun compareCodes(tvr: ByteArray, actionCodes: ByteArray): Boolean {
         for (i in tvr.indices) {
+            val tvrByte = tvr[i].toInt()
+            val actionCodeByte = actionCodes[i].toInt()
             for (bit in 0 until 8) {
-                val tvrBit = (tvr[i].toInt() shr bit) and 1
-                val actionBit = (actionCodes[i].toInt() shr bit) and 1
+                val tvrBit = (tvrByte shr bit) and 1
+                val actionBit = (actionCodeByte shr bit) and 1
                 if (tvrBit == 1 && actionBit == 1) {
                     return true
                 }
             }
         }
         return false
+    }
+
+    fun processRestriction() {
+        // Application Version Number check for TVR B2b8
+        tvr.checkAppVerNum(emvTags["9F08"], emvTags["9F09"])
+        // Check Application Usage Control
+        tvr.checkAUC(emvTags["9F07"], emvTags["9F57"], emvTags["9F1A"]!!)
+        // Check Effective Date & Expiration Date
+        tvr.checkExpirationDate(emvTags["9A"]!!, emvTags["5F24"])
+        tvr.checkEffectiveDate(emvTags["9A"]!!, emvTags["5F25"])
+    }
+
+    fun processODA(capkTable: CaPublicKeyTable?) {
+        if (isSupportODA()) {
+            val rid = BytesUtils.bytesToString(getAID().sliceArray(0 until 5)).uppercase()
+            val capkIndex = BytesUtils.bytesToString(emvTags["8F"]!!).uppercase()
+            val capk = capkTable?.findPublicKey(rid, capkIndex)
+
+            capk?.let {
+                when {
+                    isCardSupportSDA() && !isCardSupportDDA() && !isCardSupportCDA() -> {
+                        tvr.setSDASelected()
+                        SignedStaticApplicationDataDecoder.validate(this, it)
+                    }
+                    isCardSupportDDA() && !isCardSupportCDA() -> {
+                        if (emvTags.containsKey("9F69"))
+                            SignedDynamicApplicationDataDecoder.validatefDDA(this, it)
+                        else
+                            SignedDynamicApplicationDataDecoder.retrievalApplicationCryptogram(this, it)
+                    }
+                    isCardSupportCDA() -> {
+                        SignedDynamicApplicationDataDecoder.retrievalApplicationCryptogram(this, it)
+                    }
+                }
+            } ?: throw TLVException("Not supported AID")
+        } else {
+            tvr.setODANotPerformed()
+        }
+    }
+
+    fun setDDAFailed() {
+        tvr.setDDAFailed()
+    }
+
+    fun setCDAFailed() {
+        tvr.setCDAFailed()
+    }
+
+    fun setSDAFailed() {
+        tvr.setSDAFailed()
     }
 }
