@@ -201,8 +201,8 @@ class EMVTransactionRecord {
         return emvTags["9F37"]!!
     }
 
-    fun getPDOL(): ByteArray {
-        return emvTags["9F38"]!!
+    fun getPDOL(): ByteArray? {
+        return emvTags["9F38"]
     }
 
     fun getCDOL1(): ByteArray {
@@ -352,11 +352,12 @@ class EMVTransactionRecord {
                     isCardSupportDDA() && !isCardSupportCDA() -> {
                         if (emvTags.containsKey("9F69"))
                             SignedDynamicApplicationDataDecoder.validatefDDA(this, it)
-                        else
+                        else if (emvTags.containsKey("9F4B"))
                             SignedDynamicApplicationDataDecoder.retrievalApplicationCryptogram(this, it)
                     }
                     isCardSupportCDA() -> {
-                        SignedDynamicApplicationDataDecoder.retrievalApplicationCryptogram(this, it)
+                        if (emvTags.containsKey("9F4B"))
+                            SignedDynamicApplicationDataDecoder.retrievalApplicationCryptogram(this, it)
                     }
                 }
             } ?: throw TLVException("Not supported AID")

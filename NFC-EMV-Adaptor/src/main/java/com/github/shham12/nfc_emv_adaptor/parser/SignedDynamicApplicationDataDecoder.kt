@@ -1,6 +1,7 @@
 package com.github.shham12.nfc_emv_adaptor.parser
 
 import com.github.shham12.nfc_emv_adaptor.iso7816emv.impl.CaPublicKey
+import com.github.shham12.nfc_emv_adaptor.iso7816emv.model.DOL
 import com.github.shham12.nfc_emv_adaptor.iso7816emv.model.EMVTransactionRecord
 import com.github.shham12.nfc_emv_adaptor.util.BytesUtils.bytesToString
 import com.github.shham12.nfc_emv_adaptor.util.BytesUtils.hexTobyte
@@ -75,7 +76,8 @@ object SignedDynamicApplicationDataDecoder {
         // - The tags, lengths, and values of the data elements returned by the ICC in the
         //   response to the GENERATE AC command in the order they are returned,
         //   with the exception of the Signed Dynamic Application Data.
-        val pDOL = DOLParser.generateDOLdata(DOLParser.parseDOL(pEMVRecord.getPDOL()), false, pEMVRecord)
+        val pdolData: List<DOL>? = pEMVRecord.getPDOL()?.let { DOLParser.parseDOL(it) }
+        val pDOL = DOLParser.generateDOLdata(pdolData, false, pEMVRecord)
         val cDOL1 = DOLParser.generateDOLdata(DOLParser.parseDOL(pEMVRecord.getCDOL1()), false, pEMVRecord)
         val responseMessageTemp2 = TLVParser.parseEx(pEMVRecord.getResponseMessageTemplate2())
         responseMessageTemp2.removeByTag("9F4B")
