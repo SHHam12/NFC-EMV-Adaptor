@@ -2,7 +2,6 @@ package com.github.shham12.nfc_emv_adaptor.iso7816emv.apdu.model
 
 import com.github.shham12.nfc_emv_adaptor.iso7816emv.model.TerminalVerificationResults
 import org.junit.Assert.*
-import org.junit.Before
 import org.junit.Test
 
 class TerminalVerificationResultsTest {

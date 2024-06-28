@@ -22,16 +22,16 @@ class EMVParser(pProvider: IProvider, pContactLess: Boolean = true, pCapkXML: St
     /**
      * Max record for SFI
      */
-    private val MAX_RECORD_SFI: Int = 16
+    private val maxRecordSFI: Int = 16
     /**
      * PPSE directory "2PAY.SYS.DDF01"
      */
-    private val PPSE: ByteArray = "2PAY.SYS.DDF01".toByteArray()
+    private val ppse: ByteArray = "2PAY.SYS.DDF01".toByteArray()
 
     /**
      * PSE directory "1PAY.SYS.DDF01"
      */
-    private val PSE: ByteArray = "1PAY.SYS.DDF01".toByteArray()
+    private val pse: ByteArray = "1PAY.SYS.DDF01".toByteArray()
 
     /**
      * Provider
@@ -63,11 +63,11 @@ class EMVParser(pProvider: IProvider, pContactLess: Boolean = true, pCapkXML: St
         // use PSE first
         selectPSE(contactLess)
         // Select AID
-        var pdol: ByteArray? = selectAID(emvTransactionRecord.getAID())
+        val pdol: ByteArray? = selectAID(emvTransactionRecord.getAID())
         // GPO
-        var aflData: ByteArray? = gpo(pdol)
+        val aflData: ByteArray? = gpo(pdol)
         // Read Record
-        var cdol1: ByteArray? = readRecord(aflData)
+        val cdol1: ByteArray? = readRecord(aflData)
 
         // Processing Restriction
         emvTransactionRecord.processRestriction()
@@ -103,7 +103,7 @@ class EMVParser(pProvider: IProvider, pContactLess: Boolean = true, pCapkXML: St
     private fun selectPSE(pContactLess: Boolean) {
         Log.d("APDUCommand", "SELECT PSE")
 
-        val selectCommand = APDUCommand(CommandEnum.SELECT, if (pContactLess) PPSE else PSE, 0).toBytes()
+        val selectCommand = APDUCommand(CommandEnum.SELECT, if (pContactLess) ppse else pse, 0).toBytes()
         val response = APDUResponse(provider!!.transceive(selectCommand)!!)
 
         if (response.isSuccess()) {
@@ -125,7 +125,7 @@ class EMVParser(pProvider: IProvider, pContactLess: Boolean = true, pCapkXML: St
                         }
 
                         application?.let{tlv ->
-                            tlv.value?.let{app ->
+                            tlv.value.let{ app ->
                                 // Parse application and populate to emvTags
                                 TLVParser.parseEx(app).getTLVList().forEach { tlv: TLV ->
                                     if (!tlv.tag.isConstructed())
@@ -151,10 +151,10 @@ class EMVParser(pProvider: IProvider, pContactLess: Boolean = true, pCapkXML: St
         var pdol : TLV? = null
         if (pAID == null)
             throw TLVException("AID not exist")
-        var data = provider!!.transceive(APDUCommand(CommandEnum.SELECT, pAID, 0).toBytes())
-        var response = APDUResponse(data!!)
+        val data = provider!!.transceive(APDUCommand(CommandEnum.SELECT, pAID, 0).toBytes())
+        val response = APDUResponse(data!!)
         if (response.isSuccess()) {
-            pdol = TLVParser.parseEx(response.getData()).searchByTag("9F38");
+            pdol = TLVParser.parseEx(response.getData()).searchByTag("9F38")
             TLVParser.parseEx(response.getData()).getTLVList().forEach { tlv: TLV ->
                 if (!tlv.tag.isConstructed())
                     emvTransactionRecord.addEMVTagValue(tlv.tag.getTag().uppercase(), tlv.value)
@@ -243,7 +243,7 @@ class EMVParser(pProvider: IProvider, pContactLess: Boolean = true, pCapkXML: St
                             Log.d("NFC-EMV-Adaptor", "CDOL1 ${cdol1?.joinToString("") { "%02x".format(it) }}")
                         }
                         TLVParser.parseEx(response.getData()).searchByTag("8D")?.value?.let { value ->
-                            Log.d("NFC-EMV-Adaptor", "CDOL2 ${value?.joinToString("") { "%02x".format(it) }}")
+                            Log.d("NFC-EMV-Adaptor", "CDOL2 ${value.joinToString("") { "%02x".format(it) }}")
                         }
                     }
                 }

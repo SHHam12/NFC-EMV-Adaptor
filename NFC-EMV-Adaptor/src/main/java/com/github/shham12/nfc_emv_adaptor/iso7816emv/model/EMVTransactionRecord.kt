@@ -138,15 +138,15 @@ class EMVTransactionRecord {
     }
 
     fun isCardSupportSDA(): Boolean {
-        return BytesUtils.matchBitByBitIndex(emvTags["82"]!![0], 6)
+        return matchBitByBitIndex(emvTags["82"]!![0], 6)
     }
 
     fun isCardSupportDDA(): Boolean {
-        return BytesUtils.matchBitByBitIndex(emvTags["82"]!![0], 5)
+        return matchBitByBitIndex(emvTags["82"]!![0], 5)
     }
 
     fun isCardSupportCDA(): Boolean {
-        return BytesUtils.matchBitByBitIndex(emvTags["82"]!![0], 0)
+        return matchBitByBitIndex(emvTags["82"]!![0], 0)
     }
 
     fun isSupportODA(): Boolean {
@@ -170,7 +170,7 @@ class EMVTransactionRecord {
     }
 
     fun getICCPublicKeyExponent(): ByteArray? {
-        return emvTags["9F47"] ?: byteArrayOf()
+        return emvTags["9F47"]
     }
 
     fun getICCPublicKeyCertificate(): ByteArray? {
@@ -219,12 +219,12 @@ class EMVTransactionRecord {
 
     fun processCVM(){
         // Check card support Customer Verification
-        val AIP = emvTags["82"]
+        val aip = emvTags["82"]
         val cvmList = emvTags["8E"]
-        if (AIP != null) {
+        if (aip != null) {
             if (cvmList != null) {
                 if (exceedCVMLimit) {
-                    if (matchBitByBitIndex(AIP[0], 4)) {
+                    if (matchBitByBitIndex(aip[0], 4)) {
                         // Support Cardholder verification
                         // Only support signature
                         if (cvmList.containsSequence("1E06".toByteArray())) {
@@ -257,9 +257,9 @@ class EMVTransactionRecord {
     }
 
     fun processTermRiskManagement(){
-        val AIP = emvTags["82"]
-        if (AIP != null) {
-            if (matchBitByBitIndex(AIP[0], 3)) {
+        val aip = emvTags["82"]
+        if (aip != null) {
+            if (matchBitByBitIndex(aip[0], 3)) {
                 setFloorLimitIfNeeded()
             }
             // Random Transaction Selection

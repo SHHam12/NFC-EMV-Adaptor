@@ -45,19 +45,19 @@ object BytesUtils {
     }
 
     fun byteArrayAnd(array1: ByteArray, array2: ByteArray): ByteArray {
-        return ByteArray(array1.size) { i -> (array1[i] and array2[i]).toByte() }
+        return ByteArray(array1.size) { i -> (array1[i] and array2[i]) }
     }
 
     fun byteArrayOr(array1: ByteArray, array2: ByteArray): ByteArray {
-        return ByteArray(array1.size) { i -> (array1[i] or array2[i]).toByte() }
+        return ByteArray(array1.size) { i -> (array1[i] or array2[i]) }
     }
 
     fun byteArrayXor(array1: ByteArray, array2: ByteArray): ByteArray {
-        return ByteArray(array1.size) { i -> (array1[i] xor array2[i]).toByte() }
+        return ByteArray(array1.size) { i -> (array1[i] xor array2[i]) }
     }
 
     fun byteArrayNot(array: ByteArray): ByteArray {
-        return ByteArray(array.size) { i -> array[i].inv().toByte() }
+        return ByteArray(array.size) { i -> array[i].inv() }
     }
 
     fun hexString(b: ByteArray, offset: Int, len: Int): String {
@@ -69,7 +69,7 @@ object BytesUtils {
         return d.toString()
     }
 
-    fun toHex(s: java.lang.StringBuilder, b: Byte) {
+    private fun toHex(s: java.lang.StringBuilder, b: Byte) {
         val hi = Character.forDigit((b.toInt() shr 4) and 0x0F, 16)
         val lo = Character.forDigit(b.toInt() and 0x0F, 16)
         s.append(hi.uppercaseChar())

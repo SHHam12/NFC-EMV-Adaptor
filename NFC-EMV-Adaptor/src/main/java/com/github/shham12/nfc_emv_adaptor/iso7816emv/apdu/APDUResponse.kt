@@ -2,9 +2,9 @@ package com.github.shham12.nfc_emv_adaptor.iso7816emv.apdu
 
 
 class APDUResponse(response: ByteArray) {
-    val responseData: ByteArray
-    val sw1: Byte
-    val sw2: Byte
+    private val responseData: ByteArray
+    private val sw1: Byte
+    private val sw2: Byte
 
     init {
         // Assuming the last two bytes are SW1 and SW2

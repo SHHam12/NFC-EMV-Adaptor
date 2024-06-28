@@ -39,7 +39,7 @@ class TLVList {
     fun generate(exclusiveConstructed: Boolean, filteredTags: Boolean): String {
         val result = StringBuilder()
         listOfTLV
-            .filterNot { it.value.isEmpty() || it.value.size < 1 }
+            .filterNot { it.value.isEmpty() }
             .filterNot {
                 exclusiveConstructed && it.tag.isConstructed()
             }

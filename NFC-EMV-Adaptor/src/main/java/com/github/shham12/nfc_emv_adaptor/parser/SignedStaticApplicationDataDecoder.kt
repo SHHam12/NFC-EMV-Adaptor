@@ -23,7 +23,7 @@ object SignedStaticApplicationDataDecoder {
             isFailed = true
 
         //Step 2: The Recovered Data Trailer is equal to 'BC'
-        var decryptedSSAD = Cryptogram.performRSA(ssad, exponent, issuerPublicKeyModulus)
+        val decryptedSSAD = Cryptogram.performRSA(ssad, exponent, issuerPublicKeyModulus)
         if (decryptedSSAD[issuerPublicKeyModulus.size - 1] != 0xBC.toByte())
             isFailed = true
 

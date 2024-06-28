@@ -5,11 +5,11 @@ import java.io.ByteArrayOutputStream
 
 object TLVParser {
     fun parseEx(hexByteArray: ByteArray): TLVList {
-        val TLVData: TLVList?
+        val tlvData: TLVList?
         var subLists: MutableList<TLVList>? = null
 
-        TLVData = parseAsListEx(hexByteArray, false)
-        TLVData.getTLVList().forEach { tlv ->
+        tlvData = parseAsListEx(hexByteArray, false)
+        tlvData.getTLVList().forEach { tlv ->
             if (tlv.tag.isConstructed()) {
                 if (subLists == null)
                     subLists = mutableListOf()
@@ -30,16 +30,16 @@ object TLVParser {
             // Merge
             subLists!!.forEach { list ->
                 list.getTLVList().forEach { item ->
-                    if (!TLVData.containsByTag(item.tag.getTag()))
-                        TLVData.add(item)
+                    if (!tlvData.containsByTag(item.tag.getTag()))
+                        tlvData.add(item)
                 }
             }
         }
-        return TLVData
+        return tlvData
     }
 
-    fun parseAsListEx(hex: ByteArray, isSubTag: Boolean = false): TLVList {
-        val TLVData = TLVList()
+    private fun parseAsListEx(hex: ByteArray, isSubTag: Boolean = false): TLVList {
+        val tlvData = TLVList()
         var length = 0
         val hexTag = StringBuilder()
         val hexValue = ByteArrayOutputStream()
@@ -95,7 +95,10 @@ object TLVParser {
                     else -> {
                         val errorInfo = "hexString : $hex,  isSubTag : $isSubTag, firstLength : $firstLength, tmpLen : $tmpLen, hexTag : $hexTag\n\n"
                         var strTagList = ""
-                        val tagList = TLVData.generateList(false, false)
+                        val tagList = tlvData.generateList(
+                            exclusiveConstructed = false,
+                            filteredTags = false
+                        )
                         for ((key, value) in tagList) {
                             strTagList += "\nTag : $key, Value : $value"
                         }
@@ -109,13 +112,13 @@ object TLVParser {
                     cursor++
                 }
 
-                TLVData.add(hexTag.toString().uppercase(), length, hexValue.toByteArray())
+                tlvData.add(hexTag.toString().uppercase(), length, hexValue.toByteArray())
             }
         } catch (e: IndexOutOfBoundsException) {
-            TLVData.add(hexTag.toString().uppercase(), length, hexValue.toByteArray())
+            tlvData.add(hexTag.toString().uppercase(), length, hexValue.toByteArray())
         }
 
-        return TLVData
+        return tlvData
     }
 
     private fun convertToDecimalArray(hex: ByteArray): IntArray {
@@ -158,7 +161,7 @@ object TLVParser {
         return 0x80 != (value and 0x80)
     }
 
-    fun getLengthOfLengthByte(value: Int): Int {
+    private fun getLengthOfLengthByte(value: Int): Int {
         var len = 1
 
         if (0x80 == (0x80 and value)) {

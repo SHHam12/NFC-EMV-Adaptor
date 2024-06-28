@@ -252,9 +252,9 @@ class EMVTransactionRecordTest {
     @Test
     fun testProcessCVM_Signature() {
         emvTransactionRecord.clear()
-        val AIP = byteArrayOf(0x10)  // Support CVM
+        val aip = byteArrayOf(0x10)  // Support CVM
         val cvmList = "000007D000000000410342031E06".toByteArray()  // Signature
-        emvTransactionRecord.addEMVTagValue("82", AIP)
+        emvTransactionRecord.addEMVTagValue("82", aip)
         emvTransactionRecord.addEMVTagValue("8E", cvmList)
         val amountExceedingLimit = "000000010001".toByteArray()  // CVM 제한을 초과하는 금액
         emvTransactionRecord.setAmount1(amountExceedingLimit)
@@ -266,9 +266,9 @@ class EMVTransactionRecordTest {
     @Test
     fun testProcessCVM_NoCVMRequired() {
         emvTransactionRecord.clear()
-        val AIP = byteArrayOf(0x10)  // Support CVM
+        val aip = byteArrayOf(0x10)  // Support CVM
         val cvmList = "1F02".toByteArray()  // No CVM required
-        emvTransactionRecord.addEMVTagValue("82", AIP)
+        emvTransactionRecord.addEMVTagValue("82", aip)
         emvTransactionRecord.addEMVTagValue("8E", cvmList)
         val amountExceedingLimit = "000000010001".toByteArray()  // CVM 제한을 초과하는 금액
         emvTransactionRecord.setAmount1(amountExceedingLimit)
@@ -280,9 +280,9 @@ class EMVTransactionRecordTest {
     @Test
     fun testProcessCVM_NoMatchingCVM() {
         emvTransactionRecord.clear()
-        val AIP = byteArrayOf(0x10)  // Support CVM
+        val aip = byteArrayOf(0x10)  // Support CVM
         val cvmList = "1E05".toByteArray()  // No matching CVM
-        emvTransactionRecord.addEMVTagValue("82", AIP)
+        emvTransactionRecord.addEMVTagValue("82", aip)
         emvTransactionRecord.addEMVTagValue("8E", cvmList)
         val amountExceedingLimit = "000000010001".toByteArray()  // CVM 제한을 초과하는 금액
         emvTransactionRecord.setAmount1(amountExceedingLimit)
@@ -294,9 +294,9 @@ class EMVTransactionRecordTest {
     @Test
     fun testProcessCVM_NotSupportCVM() {
         emvTransactionRecord.clear()
-        val AIP = byteArrayOf(0x00)  // Not support CVM
+        val aip = byteArrayOf(0x00)  // Not support CVM
         val cvmList = "1E06".toByteArray()  // Signature
-        emvTransactionRecord.addEMVTagValue("82", AIP)
+        emvTransactionRecord.addEMVTagValue("82", aip)
         emvTransactionRecord.addEMVTagValue("8E", cvmList)
         val amountExceedingLimit = "000000010001".toByteArray()  // CVM 제한을 초과하는 금액
         emvTransactionRecord.setAmount1(amountExceedingLimit)
@@ -307,9 +307,9 @@ class EMVTransactionRecordTest {
     @Test
     fun testProcessCVM_NoCVMPerformed() {
         emvTransactionRecord.clear()
-        val AIP = byteArrayOf(0x10)  // Support CVM
+        val aip = byteArrayOf(0x10)  // Support CVM
         val cvmList = "1E06".toByteArray()  // Signature
-        emvTransactionRecord.addEMVTagValue("82", AIP)
+        emvTransactionRecord.addEMVTagValue("82", aip)
         emvTransactionRecord.addEMVTagValue("8E", cvmList)
         val amountNotExceedingLimit = "000000000001".toByteArray()  // CVM 제한을 초과하지 않는 금액
         emvTransactionRecord.setAmount1(amountNotExceedingLimit)
@@ -320,8 +320,8 @@ class EMVTransactionRecordTest {
     @Test
     fun testProcessCVM_NoCVMList() {
         emvTransactionRecord.clear()
-        val AIP = byteArrayOf(0x10)  // Support CVM
-        emvTransactionRecord.addEMVTagValue("82", AIP)
+        val aip = byteArrayOf(0x10)  // Support CVM
+        emvTransactionRecord.addEMVTagValue("82", aip)
         val amountExceedingLimit = "000000010001".toByteArray()  // CVM 제한을 초과하는 금액
         emvTransactionRecord.setAmount1(amountExceedingLimit)
         emvTransactionRecord.processCVM()
@@ -332,8 +332,8 @@ class EMVTransactionRecordTest {
     @Test
     fun testProcessTermRiskManagement() {
         emvTransactionRecord.clear()
-        val AIP = byteArrayOf(0x08)  // Support Terminal Risk Management
-        emvTransactionRecord.addEMVTagValue("82", AIP)
+        val aip = byteArrayOf(0x08)  // Support Terminal Risk Management
+        emvTransactionRecord.addEMVTagValue("82", aip)
         emvTransactionRecord.processTermRiskManagement()
         // floor limit always exceeds need to check TVR B4b8
         assertEquals(0x80.toByte(), emvTransactionRecord.getEMVTags()["95"]!![3] and 0x80.toByte())

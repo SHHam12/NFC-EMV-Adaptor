@@ -2,13 +2,6 @@ package com.github.shham12.nfc_emv_adaptor.util
 
 import com.github.shham12.nfc_emv_adaptor.iso7816emv.model.DOL
 import com.github.shham12.nfc_emv_adaptor.iso7816emv.model.EMVTransactionRecord
-import com.github.shham12.nfc_emv_adaptor.util.BytesUtils.bytesToString
-import com.github.shham12.nfc_emv_adaptor.util.BytesUtils.containsSequence
-import java.security.SecureRandom
-import java.time.LocalDate
-import java.time.LocalTime
-import java.time.format.DateTimeFormatter
-import kotlin.experimental.or
 
 object DOLParser {
     fun parseDOL(pdol: ByteArray): List<DOL> {
@@ -99,7 +92,7 @@ object DOLParser {
                 .toByteArray()
     }
 
-    fun containsTag(dolList: List<DOL>, targetTag: String): Boolean {
+    private fun containsTag(dolList: List<DOL>, targetTag: String): Boolean {
         return dolList.any { it.tag == targetTag }
     }
 

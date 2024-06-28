@@ -21,7 +21,7 @@ object ICCPublicKeyDecoder {
             isFailed = true
 
         //Step 2: The Recovered Data Trailer is equal to 'BC'
-        var decryptedICC = Cryptogram.performRSA(certificate, exponent, issuerPublicKeyModulus)
+        val decryptedICC = Cryptogram.performRSA(certificate, exponent, issuerPublicKeyModulus)
         if (decryptedICC[issuerPublicKeyModulus.size - 1] != 0xBC.toByte())
             isFailed = true
 
@@ -38,8 +38,7 @@ object ICCPublicKeyDecoder {
         val remainder = pEMVRecord.getICCPublicKeyRemainder()
         if (remainder != null)
             list += remainder
-        val exp = pEMVRecord.getICCPublicKeyExponent() ?: throw IllegalArgumentException("ICC Public Key Exponent not found in Card")
-        list += exp
+        list += exponent
 
         val sdaTagList = pEMVRecord.getStaticDataAuthenticationTagList()
         if (sdaTagList != null) {
@@ -59,7 +58,7 @@ object ICCPublicKeyDecoder {
 //            isFailed = true
 
         // Step 8: Verify that the Issuer Identifier matches the leftmost 3-8 PAN digits
-        var pan = pEMVRecord.getPAN()
+        val pan = pEMVRecord.getPAN()
         if (pan != null) {
             var panStr = bytesToString(pan).uppercase()
             var panCert = bytesToString(decryptedICC.copyOfRange(2, 12)).uppercase()
@@ -81,10 +80,10 @@ object ICCPublicKeyDecoder {
 
         // Step 11: Concatenate the Leftmost Digits of the ICC Public Key
         //and the ICC Public Key Remainder (if present) to obtain the ICC Public Key Modulus
-        val ICCPubKeyLen = decryptedICC[19].toInt() and 0xFF
+        val iccPubKeyLen = decryptedICC[19].toInt() and 0xFF
         var leftmostDigits = decryptedICC.sliceArray(21 until 21 + (issuerPublicKeyModulus.size - 42))
-        if (leftmostDigits.size > ICCPubKeyLen)
-            leftmostDigits = leftmostDigits.sliceArray(0 until ICCPubKeyLen)
+        if (leftmostDigits.size > iccPubKeyLen)
+            leftmostDigits = leftmostDigits.sliceArray(0 until iccPubKeyLen)
         val iccPublicKeyModulus = if (remainder != null) leftmostDigits + remainder else leftmostDigits
 
         if (isFailed) {

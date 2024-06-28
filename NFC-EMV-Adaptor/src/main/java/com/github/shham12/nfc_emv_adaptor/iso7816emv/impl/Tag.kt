@@ -56,7 +56,7 @@ class Tag(
         return type === ITag.TagType.CONSTRUCTED
     }
 
-    override fun getTagBytes(): ByteArray? {
+    override fun getTagBytes(): ByteArray {
         return idBytes
     }
 
@@ -72,12 +72,11 @@ class Tag(
         if (other !is ITag) {
             return false
         }
-        val that = other
-        if (getTagBytes()!!.size != that.getTagBytes()!!.size) {
+        if (getTagBytes().size != other.getTagBytes()!!.size) {
             return false
         }
 
-        return getTagBytes().contentEquals(that.getTagBytes())
+        return getTagBytes().contentEquals(other.getTagBytes())
     }
 
     override fun hashCode(): Int {
@@ -93,7 +92,7 @@ class Tag(
     override fun toString(): String {
         val sb = StringBuilder()
         sb.append("Tag[")
-        sb.append(BytesUtils.bytesToString(getTagBytes()!!))
+        sb.append(BytesUtils.bytesToString(getTagBytes()))
         sb.append("] Name=")
         sb.append(name)
         sb.append(", TagType=")

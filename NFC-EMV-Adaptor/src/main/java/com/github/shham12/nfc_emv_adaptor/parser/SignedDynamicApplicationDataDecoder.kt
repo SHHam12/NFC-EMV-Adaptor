@@ -3,7 +3,6 @@ package com.github.shham12.nfc_emv_adaptor.parser
 import com.github.shham12.nfc_emv_adaptor.iso7816emv.impl.CaPublicKey
 import com.github.shham12.nfc_emv_adaptor.iso7816emv.model.DOL
 import com.github.shham12.nfc_emv_adaptor.iso7816emv.model.EMVTransactionRecord
-import com.github.shham12.nfc_emv_adaptor.util.BytesUtils.bytesToString
 import com.github.shham12.nfc_emv_adaptor.util.BytesUtils.hexTobyte
 import com.github.shham12.nfc_emv_adaptor.util.Cryptogram
 import com.github.shham12.nfc_emv_adaptor.util.DOLParser
@@ -25,7 +24,7 @@ object SignedDynamicApplicationDataDecoder {
             isFailed = true
 
         //Step 2: The Recovered Data Trailer is equal to 'BC'
-        var decryptedSDAD = Cryptogram.performRSA(sdad, exponent, iccPublicKeyModulus)
+        val decryptedSDAD = Cryptogram.performRSA(sdad, exponent, iccPublicKeyModulus)
         if (decryptedSDAD[iccPublicKeyModulus.size - 1] != 0xBC.toByte())
             isFailed = true
 
@@ -38,17 +37,17 @@ object SignedDynamicApplicationDataDecoder {
             isFailed = true
 
         // Step 5: Concatenation
-        var length = decryptedSDAD[3].toInt() and 0xFF
-        var iccDynamicData = decryptedSDAD.sliceArray(4 until 4 + length)
+        val length = decryptedSDAD[3].toInt() and 0xFF
+        val iccDynamicData = decryptedSDAD.sliceArray(4 until 4 + length)
 
         // Step 6: Check CID from ICC Dynamic Data & from Gen AC
         val iccDynamicNumLength = iccDynamicData[0].toInt() and 0xFF
         val iccDynamicNum = iccDynamicData.sliceArray(1 until 1 + iccDynamicNumLength)
-        val CID = iccDynamicData.sliceArray(1 + iccDynamicNumLength until 2 + iccDynamicNumLength)
+        val cid = iccDynamicData.sliceArray(1 + iccDynamicNumLength until 2 + iccDynamicNumLength)
         val appplicationCryptogram = iccDynamicData.sliceArray(2 + iccDynamicNumLength until iccDynamicData.size - 20)
         val transactionHashData = iccDynamicData.sliceArray(iccDynamicData.size - 20 until iccDynamicData.size)
 
-        if (!CID.contentEquals(pEMVRecord.getCryptogramInformationData()))
+        if (!cid.contentEquals(pEMVRecord.getCryptogramInformationData()))
             isFailed = true
 
         // Step 7: Concatenate from left to right the second to the sixth data elements in Table 22 (that
@@ -119,7 +118,7 @@ object SignedDynamicApplicationDataDecoder {
             isFailed = true
 
         //Step 2: The Recovered Data Trailer is equal to 'BC'
-        var decryptedSDAD = Cryptogram.performRSA(sdad, exponent, iccPublicKeyModulus)
+        val decryptedSDAD = Cryptogram.performRSA(sdad, exponent, iccPublicKeyModulus)
         if (decryptedSDAD[iccPublicKeyModulus.size - 1] != 0xBC.toByte())
             isFailed = true
 
@@ -132,8 +131,8 @@ object SignedDynamicApplicationDataDecoder {
             isFailed = true
 
         // Step 5: Concatenation
-        var length = decryptedSDAD[3].toInt() and 0xFF
-        var iccDynamicData = decryptedSDAD.sliceArray(4 until 4 + length)
+        val length = decryptedSDAD[3].toInt() and 0xFF
+        val iccDynamicData = decryptedSDAD.sliceArray(4 until 4 + length)
         var concatenatedList = decryptedSDAD.sliceArray(1 until decryptedSDAD.size - 21)
         val dDOL = DOLParser.generateDOLdata(DOLParser.parseDOL(pEMVRecord.getDDOL(true)), false, pEMVRecord)
         concatenatedList += dDOL
