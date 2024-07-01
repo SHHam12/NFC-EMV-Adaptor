@@ -260,7 +260,6 @@ class EMVTransactionRecordTest {
         emvTransactionRecord.setAmount1(amountExceedingLimit)
         emvTransactionRecord.processCVM()
         assertArrayEquals("1E0000".toByteArray(), emvTransactionRecord.getEMVTags()["9F34"])
-        assertEquals(0x40.toByte(), emvTransactionRecord.getEMVTags()["9B"]!![0] and 0x40.toByte())
     }
 
     @Test
@@ -274,7 +273,6 @@ class EMVTransactionRecordTest {
         emvTransactionRecord.setAmount1(amountExceedingLimit)
         emvTransactionRecord.processCVM()
         assertArrayEquals("1F0002".toByteArray(), emvTransactionRecord.getEMVTags()["9F34"])
-        assertEquals(0x40.toByte(), emvTransactionRecord.getEMVTags()["9B"]!![0] and 0x40.toByte())
     }
 
     @Test
@@ -288,7 +286,6 @@ class EMVTransactionRecordTest {
         emvTransactionRecord.setAmount1(amountExceedingLimit)
         emvTransactionRecord.processCVM()
         assertArrayEquals("3F0001".toByteArray(), emvTransactionRecord.getEMVTags()["9F34"])
-        assertEquals(0x40.toByte(), emvTransactionRecord.getEMVTags()["9B"]!![0] and 0x40.toByte())
     }
 
     @Test

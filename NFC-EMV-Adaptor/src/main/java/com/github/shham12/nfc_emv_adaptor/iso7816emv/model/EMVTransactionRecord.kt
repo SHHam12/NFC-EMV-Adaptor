@@ -29,11 +29,10 @@ class EMVTransactionRecord {
         "9C" to "00".toByteArray(), // 0x00: Goods/ Service, 0x09: CashBack, 0x01: Cash, 0x20: Refund, 0x30: Balance Inquiry
         "9F34" to "000000".toByteArray(),
         "9F40" to "E0C8E06400".toByteArray(),
-        "9F1D" to "0000000000".toByteArray(),
+        "9F1D" to "A980800000".toByteArray(),
         "9F33" to "8028C8".toByteArray(),
         "9F4E" to "000000".toByteArray(),
-        "9F6D" to "C0".toByteArray(), // CVM Required 0XC8 CVM Not Required 0XC0
-        "9B" to "0000".toByteArray()
+        "9F6D" to "C0".toByteArray() // CVM Required 0XC8 CVM Not Required 0XC0
     )
 
     private val emvTags = mutableMapOf<String, ByteArray>()
@@ -50,6 +49,8 @@ class EMVTransactionRecord {
     private val defaultDDOLfDDA = "9F37049F02065F2A02".toByteArray()
 
     private val tvr = TerminalVerificationResults()
+
+    private val tsi = TransactionStatusIndicator()
 
     private var exceedCVMLimit = false
 
@@ -87,6 +88,8 @@ class EMVTransactionRecord {
     fun getEMVTags(): MutableMap<String, ByteArray> {
         // Need to add TVR
         addEMVTagValue("95", tvr.getValue())
+        // Need to add TSI
+        addEMVTagValue("9B", tsi.getValue())
         return emvTags
     }
 
@@ -230,15 +233,15 @@ class EMVTransactionRecord {
                         if (cvmList.containsSequence("1E06".toByteArray())) {
                             // Signature
                             addEMVTagValue("9F34", "1E0000".toByteArray())
-                            setTSICardholderVerificationPerformed()
+                            tsi.setCardholderVerificationPerformed()
                         } else if (cvmList.containsSequence("1F02".toByteArray())) {
                             // No CVM required
                             addEMVTagValue("9F34", "1F0002".toByteArray())
-                            setTSICardholderVerificationPerformed()
+                            tsi.setCardholderVerificationPerformed()
                         } else {
                             // No matching CVM
                             addEMVTagValue("9F34", "3F0001".toByteArray())
-                            setTSICardholderVerificationPerformed()
+                            tsi.setCardholderVerificationPerformed()
                             tvr.setCardholderVerificationFailed()
                         }
                     } else {
@@ -271,10 +274,6 @@ class EMVTransactionRecord {
             // Exception File Checking
             // Terminal Exception File/ Hotlist is not supported
         }
-    }
-
-    private fun setTSICardholderVerificationPerformed() {
-        emvTags["9B"]!![0] = setBit(emvTags["9B"]!![0], 6, true)
     }
 
     private fun generateUnpredictableNumber(): ByteArray {
@@ -348,16 +347,25 @@ class EMVTransactionRecord {
                     isCardSupportSDA() && !isCardSupportDDA() && !isCardSupportCDA() -> {
                         tvr.setSDASelected()
                         SignedStaticApplicationDataDecoder.validate(this, it)
+                        tsi.setODAPerformed()
                     }
                     isCardSupportDDA() && !isCardSupportCDA() -> {
-                        if (emvTags.containsKey("9F69"))
-                            SignedDynamicApplicationDataDecoder.validatefDDA(this, it)
-                        else if (emvTags.containsKey("9F4B"))
-                            SignedDynamicApplicationDataDecoder.retrievalApplicationCryptogram(this, it)
+                        when {
+                            emvTags.containsKey("9F69") -> {
+                                SignedDynamicApplicationDataDecoder.validatefDDA(this, it)
+                                tsi.setODAPerformed()
+                            }
+                            emvTags.containsKey("9F4B") -> {
+                                SignedDynamicApplicationDataDecoder.retrievalApplicationCryptogram(this, it)
+                                tsi.setODAPerformed()
+                            }
+                        }
                     }
                     isCardSupportCDA() -> {
-                        if (emvTags.containsKey("9F4B"))
+                        if (emvTags.containsKey("9F4B")) {
                             SignedDynamicApplicationDataDecoder.retrievalApplicationCryptogram(this, it)
+                            tsi.setODAPerformed()
+                        }
                     }
                 }
             } ?: throw TLVException("Not supported AID")
