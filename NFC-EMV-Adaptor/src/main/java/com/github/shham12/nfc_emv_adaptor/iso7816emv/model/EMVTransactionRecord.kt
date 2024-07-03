@@ -21,7 +21,7 @@ class EMVTransactionRecord {
     private val defaultValues = mutableMapOf(
         "9F35" to "22".toByteArray(),
         "9F6E" to "D8004000".toByteArray(), // Amex Enhanced Contactless Reader Capabilities
-        "9F66" to "23C00000".toByteArray(), // Need for VISA, Discover, Union Pay
+        "9F66" to "23C04000".toByteArray(), // Need for VISA, Discover, Union Pay
         "9F02" to "000000000001".toByteArray(),
         "9F03" to "000000000000".toByteArray(),
         "9F1A" to "0840".toByteArray(),
@@ -252,6 +252,16 @@ class EMVTransactionRecord {
                     // No CVM performed
                     addEMVTagValue("9F34", "3F0000".toByteArray())
                 }
+            } else if (exceedCVMLimit) {
+                val ctq = emvTags["9F6C"]
+                if (ctq == null) {
+                    // Only support signature for now
+                } else {
+                    // Only support signature for now
+                    if (matchBitByBitIndex(ctq[0], 6)) {
+                        // prompt signature
+                    }
+                }
             } else {
                 tvr.setICCDataMissing()
                 addEMVTagValue("9F34", "3F0000".toByteArray())
@@ -337,7 +347,11 @@ class EMVTransactionRecord {
     }
 
     fun processODA(capkTable: CaPublicKeyTable?) {
-        if (isSupportODA()) {
+        var termSupportODA = true
+        val ttq = emvTags["9F66"]
+        if (ttq != null && !matchBitByBitIndex(ttq[0], 0))
+            termSupportODA = false
+        if (isSupportODA() && termSupportODA) {
             val rid = BytesUtils.bytesToString(getAID().sliceArray(0 until 5)).uppercase()
             val capkIndex = BytesUtils.bytesToString(emvTags["8F"]!!).uppercase()
             val capk = capkTable?.findPublicKey(rid, capkIndex)
