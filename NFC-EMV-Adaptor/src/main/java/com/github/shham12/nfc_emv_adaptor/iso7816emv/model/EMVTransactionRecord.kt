@@ -40,6 +40,9 @@ class EMVTransactionRecord {
     private val amex =
         byteArrayOf(0xA0.toByte(), 0x00.toByte(), 0x00.toByte(), 0x00.toByte(), 0x25.toByte())
 
+    private val discover =
+        byteArrayOf(0xA0.toByte(), 0x00.toByte(), 0x00.toByte(), 0x01.toByte(), 0x52.toByte())
+
     private val cvmLimit = "000000010000".toByteArray()
 
     private val floorLimit = "000000000000".toByteArray()
@@ -224,6 +227,9 @@ class EMVTransactionRecord {
         // Check card support Customer Verification
         val aip = emvTags["82"]
         val cvmList = emvTags["8E"]
+        val cpr = emvTags["9F71"]
+        val ttq = emvTags["9F66"]
+        val cvr = emvTags["9F53"]
         if (aip != null) {
             if (cvmList != null) {
                 if (exceedCVMLimit) {
@@ -294,6 +300,9 @@ class EMVTransactionRecord {
     }
 
     fun processTermActionAnalysis(): Int {
+        if (getAID().containsSequence(discover) && emvTags.containsKey("9F71") && emvTags.containsKey("9F66"))  // 9F71 for Card Processing Requirement
+            return processTermActionAnalysisForKernel6()
+
         // Default values for TAC and IAC if not present in emvTags
         val defaultTAC = "0000000000".toByteArray()
         val defaultIAC = "1111111111".toByteArray()
@@ -309,8 +318,14 @@ class EMVTransactionRecord {
         val iacDefault = emvTags["9F0D"] ?: defaultIAC
         // Compare TAC and IAC codes
         return when {
-            compareCodes(tvr.getValue(), tacDenial) || compareCodes(tvr.getValue(), iacDenial) -> 0x00 // AAC
-            compareCodes(tvr.getValue(), tacOnline) || compareCodes(tvr.getValue(), iacOnline) -> {
+            compareCodes(tvr.getValue(), tacDenial) || compareCodes(
+                tvr.getValue(),
+                iacDenial
+            ) -> 0x00 // AAC
+            compareCodes(tvr.getValue(), tacOnline) || compareCodes(
+                tvr.getValue(),
+                iacOnline
+            ) -> {
                 if (isCardSupportCDA()) 0x90 else 0x80 // ARQC or CDA signature requested
             }
             else -> 0x40 // TC
@@ -334,6 +349,63 @@ class EMVTransactionRecord {
             }
         }
         return false
+    }
+
+    private fun processTermActionAnalysisForKernel6(): Int {
+        val cid = emvTags["9F27"]
+        val cpr = emvTags["9F71"]
+        val ttq = emvTags["9F66"]
+        if (cid != null && cpr != null && ttq != null) {
+            if (cid.contentEquals(byteArrayOf(0x00.toByte()))) { // AAC
+                if (!matchBitByBitIndex(cpr[0], 5) || tvr.isODANotPerformed() || tvr.isCDAFailed()) {
+                    throw TLVException("Declined")
+                } else if (cid.contentEquals(byteArrayOf(0x40.toByte()))) { // TC
+                    if (tvr.isCDAFailed()) {
+                        if (matchBitByBitIndex(cpr[1], 5)) throw TLVException("Declined")
+                        if (tvr.isExpiredApplication()) {
+                            if (!matchBitByBitIndex(ttq[0], 3) && matchBitByBitIndex(cpr[1], 8))
+                                throw TLVException("Declined")
+                            // Other Interface is not supported Skip
+                        }
+                    } else if (tvr.isServiceNotAllowed() || tvr.isICCDataMissing()) { // Not used terminal exception file
+                        throw TLVException("Declined")
+                    } else {
+                        if (tvr.isExpiredApplication()) {
+                            if (matchBitByBitIndex(cpr[1], 2)) {
+                                if (!matchBitByBitIndex(ttq[0], 3) && matchBitByBitIndex(cpr[1], 8))
+                                    throw TLVException("Declined")
+                                // Other Interface is not supported Skip
+                            }
+                            if (matchBitByBitIndex(cpr[1], 3)) {
+                                if (!matchBitByBitIndex(ttq[0], 3) && matchBitByBitIndex(cpr[1], 8))
+                                    throw TLVException("Declined")
+                                // Other Interface is not supported Skip
+                            }
+                            if (tvr.isNotEffectiveApplication()) {
+                                if (!matchBitByBitIndex(ttq[0], 3) && matchBitByBitIndex(cpr[1], 8))
+                                    throw TLVException("Declined")
+                                // Other Interface is not supported Skip
+                            }
+                        }
+                        if (tvr.isNotEffectiveApplication()) {
+                            if (matchBitByBitIndex(cpr[1], 2)) {
+                                if (!matchBitByBitIndex(ttq[0], 3) && matchBitByBitIndex(cpr[1], 8))
+                                    throw TLVException("Declined")
+                                // Other Interface is not supported Skip
+                            }
+                        }
+                        // Validate Choice
+                        if (matchBitByBitIndex(ttq[1], 7)) {
+                            if (cid.contentEquals(byteArrayOf(0x40.toByte()))) // TC
+                                throw TLVException("Declined")
+                            if (!cid.contentEquals(byteArrayOf(0x80.toByte())) && tvr.isCDAFailed()) // ARQC
+                                throw TLVException("Declined")
+                        }
+                    }
+                }
+            }
+        }
+        return if (isCardSupportCDA()) 0x90 else 0x80 // ARQC or CDA signature requested
     }
 
     fun processRestriction() {

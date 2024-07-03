@@ -33,6 +33,9 @@ class TerminalVerificationResults {
     fun setODANotPerformed() {
         byte1 = BytesUtils.setBit(byte1, 7, true)
     }
+    fun isODANotPerformed(): Boolean {
+        return BytesUtils.matchBitByBitIndex(byte1, 7)
+    }
     // Byte 1 bit 7 SDA failed
     fun setSDAFailed() {
         byte1 = BytesUtils.setBit(byte1, 6, true)
@@ -40,6 +43,9 @@ class TerminalVerificationResults {
     // Byte 1 bit 6 ICC data missing
     fun setICCDataMissing() {
         byte1 = BytesUtils.setBit(byte1, 5, true)
+    }
+    fun isICCDataMissing(): Boolean {
+        return BytesUtils.matchBitByBitIndex(byte1, 5)
     }
     // Byte 1 bit 5 Card appears on terminal exception file
 
@@ -50,6 +56,9 @@ class TerminalVerificationResults {
     // Byte 1 bit 3 CDA failed
     fun setCDAFailed() {
         byte1 = BytesUtils.setBit(byte1, 2, true)
+    }
+    fun isCDAFailed(): Boolean {
+        return BytesUtils.matchBitByBitIndex(byte1, 2)
     }
     // Byte 1 bit 2 SDA selected
     fun setSDASelected() {
@@ -72,12 +81,18 @@ class TerminalVerificationResults {
                 byte2 = BytesUtils.setBit(byte2, 6, true)
         }
     }
+    fun isExpiredApplication(): Boolean {
+        return BytesUtils.matchBitByBitIndex(byte2, 6)
+    }
     // Byte 2 bit 6 Application not yet effective
     fun checkEffectiveDate(pTransDate: ByteArray, pEffectiveDate: ByteArray?) {
         if (pEffectiveDate != null) {
             if (BytesUtils.compareDateByteArrays(pTransDate, pEffectiveDate) < 0)
                 byte2 = BytesUtils.setBit(byte2, 5, true)
         }
+    }
+    fun isNotEffectiveApplication(): Boolean {
+        return BytesUtils.matchBitByBitIndex(byte2, 5)
     }
     // Byte 2 bit 5 Service not allowed for card product
     fun checkAUC(pAUC :ByteArray?, pCardCountry: ByteArray?, pTermCountry: ByteArray) {
@@ -91,6 +106,9 @@ class TerminalVerificationResults {
                     byte2 = BytesUtils.setBit(byte2, 4, true)
             }
         }
+    }
+    fun isServiceNotAllowed(): Boolean {
+        return BytesUtils.matchBitByBitIndex(byte2, 4)
     }
 
     // Byte 2 bit 4 New card
