@@ -32,7 +32,8 @@ class EMVTransactionRecord {
         "9F1D" to "A980800000".toByteArray(),
         "9F33" to "8028C8".toByteArray(),
         "9F4E" to "000000".toByteArray(),
-        "9F6D" to "C0".toByteArray() // CVM Required 0XC8 CVM Not Required 0XC0
+        "9F6D" to "C0".toByteArray(), // CVM Required 0XC8 CVM Not Required 0XC0
+        "9F52" to "02".toByteArray() // Kernel 5 Terminal Compatibility Indicator
     )
 
     private val emvTags = mutableMapOf<String, ByteArray>()
@@ -42,6 +43,9 @@ class EMVTransactionRecord {
 
     private val discover =
         byteArrayOf(0xA0.toByte(), 0x00.toByte(), 0x00.toByte(), 0x01.toByte(), 0x52.toByte())
+
+    private val jcb =
+        byteArrayOf(0xA0.toByte(), 0x00.toByte(), 0x00.toByte(), 0x00.toByte(), 0x65.toByte())
 
     private val cvmLimit = "000000010000".toByteArray()
 
@@ -54,6 +58,8 @@ class EMVTransactionRecord {
     private val tvr = TerminalVerificationResults()
 
     private val tsi = TransactionStatusIndicator()
+
+    private val tip = TerminalInterchangeProfile()
 
     private var exceedCVMLimit = false
 
@@ -84,6 +90,7 @@ class EMVTransactionRecord {
         val value9F02 = emvTags["9F02"]
         if (value9F02 != null && compareByteArrays(value9F02, cvmLimit) > 0) {
             emvTags["9F6D"] = "C8".toByteArray()
+            tip.setCVMRequired()
             exceedCVMLimit = true
         }
     }
@@ -168,7 +175,18 @@ class EMVTransactionRecord {
     }
 
     fun getPAN(): ByteArray? {
-        return emvTags["5A"]
+        var pan = emvTags["5A"]
+        if (pan == null && emvTags.containsKey("57")) {// Track 2 Equivalent Data
+            val track2Data = emvTags["57"]
+            if (track2Data != null) {
+                val panEnd = track2Data.indexOf(0x44.toByte()) // 'D' character
+                if (panEnd != -1) {
+                    pan = track2Data.sliceArray(0 until panEnd)
+                    addEMVTagValue("5A", pan)
+                }
+            }
+        }
+        return pan
     }
 
     fun getIssuerPublicKeyExponent(): ByteArray {
@@ -451,6 +469,9 @@ class EMVTransactionRecord {
                         if (emvTags.containsKey("9F4B")) {
                             SignedDynamicApplicationDataDecoder.retrievalApplicationCryptogram(this, it)
                             tsi.setODAPerformed()
+                        } else {
+                            if (!emvTags.containsKey("9F26"))
+                                throw TLVException("Declined")
                         }
                     }
                 }

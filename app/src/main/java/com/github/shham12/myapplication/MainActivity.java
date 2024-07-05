@@ -317,6 +317,19 @@ public class MainActivity extends AppCompatActivity {
             "        <PKIndex>EF</PKIndex>\n" +
             "        <RID>A000000004</RID>\n" +
             "      </CAPK>\n" +
+            "      <CAPK>\n" +
+            "        <ExtensionData />\n" +
+            "        <Algorithm>01</Algorithm>\n" +
+            "        <CheckSum>D9FD62C9DD4E6DE7741E9A17FB1FF2C5DB948BCB</CheckSum>\n" +
+            "        <ExpiryDate>12312024</ExpiryDate>\n" +
+            "        <Exponent>03</Exponent>\n" +
+            "        <HashAlgorithm>01</HashAlgorithm>\n" +
+            "        <Issuer />\n" +
+            "        <KeyType />\n" +
+            "        <Modulus>A2583AA40746E3A63C22478F576D1EFC5FB046135A6FC739E82B55035F71B09BEB566EDB9968DD649B94B6DEDC033899884E908C27BE1CD291E5436F762553297763DAA3B890D778C0F01E3344CECDFB3BA70D7E055B8C760D0179A403D6B55F2B3B083912B183ADB7927441BED3395A199EEFE0DEBD1F5FC3264033DA856F4A8B93916885BD42F9C1F456AAB8CFA83AC574833EB5E87BB9D4C006A4B5346BD9E17E139AB6552D9C58BC041195336485</Modulus>\n" +
+            "        <PKIndex>11</PKIndex>\n" +
+            "        <RID>A000000065</RID>\n" +
+            "      </CAPK>\n" +
             "    </ArrayOfCAPK>\n" +
             "    <EMVKeyUpdID>0</EMVKeyUpdID>\n" +
             "  </CAPK>";
@@ -399,8 +412,9 @@ public class MainActivity extends AppCompatActivity {
 
                     String value50 = new String(data.get("50"));
                     String value5A = data.containsKey("5A") ? bytesToHex(data.get("5A")) : "N/A";
+                    String value57 = data.containsKey("57") ? bytesToHex(data.get("57")) : "N/A";
                     runOnUiThread(() -> {
-                        textView.setText("Application Label: " + value50 + "\nCard Number: " + value5A);
+                        textView.setText("Application Label: " + value50 + "\nCard Number: " + value5A+ "\nTrack 2 Data: " + value57);
                     });
                 } catch (Exception e) {
                     Log.e(TAG, "Error reading NFC tag", e);
