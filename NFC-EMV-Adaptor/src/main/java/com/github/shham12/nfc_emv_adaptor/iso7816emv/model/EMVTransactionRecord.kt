@@ -18,38 +18,7 @@ import kotlin.experimental.or
 
 
 class EMVTransactionRecord {
-    private val defaultValues = mutableMapOf(
-        "9F35" to "22".toByteArray(),
-        "9F6E" to "D8004000".toByteArray(), // Amex Enhanced Contactless Reader Capabilities
-        "9F66" to "23C04000".toByteArray(), // Need for VISA, Discover, Union Pay
-        "9F02" to "000000000001".toByteArray(),
-        "9F03" to "000000000000".toByteArray(),
-        "9F1A" to "0840".toByteArray(),
-        "5F2A" to "0840".toByteArray(),
-        "9C" to "00".toByteArray(), // 0x00: Goods/ Service, 0x09: CashBack, 0x01: Cash, 0x20: Refund, 0x30: Balance Inquiry
-        "9F34" to "000000".toByteArray(),
-        "9F40" to "E0C8E06400".toByteArray(),
-        "9F1D" to "A980800000".toByteArray(),
-        "9F33" to "8028C8".toByteArray(),
-        "9F4E" to "000000".toByteArray(),
-        "9F6D" to "C0".toByteArray(), // CVM Required 0XC8 CVM Not Required 0XC0
-        "9F52" to "02".toByteArray() // Kernel 5 Terminal Compatibility Indicator
-    )
-
     private val emvTags = mutableMapOf<String, ByteArray>()
-
-    private val amex =
-        byteArrayOf(0xA0.toByte(), 0x00.toByte(), 0x00.toByte(), 0x00.toByte(), 0x25.toByte())
-
-    private val discover =
-        byteArrayOf(0xA0.toByte(), 0x00.toByte(), 0x00.toByte(), 0x01.toByte(), 0x52.toByte())
-
-    private val jcb =
-        byteArrayOf(0xA0.toByte(), 0x00.toByte(), 0x00.toByte(), 0x00.toByte(), 0x65.toByte())
-
-    private val cvmLimit = "000000010000".toByteArray()
-
-    private val floorLimit = "000000000000".toByteArray()
 
     private val defaultDDOL = "9F3704".toByteArray()
 
@@ -60,6 +29,8 @@ class EMVTransactionRecord {
     private val tsi = TransactionStatusIndicator()
 
     private val tip = TerminalInterchangeProfile()
+
+    private val config = Configuration()
 
     private var exceedCVMLimit = false
 
@@ -73,7 +44,6 @@ class EMVTransactionRecord {
 
     private fun resetEmvTags() {
         emvTags.clear()
-        emvTags.putAll(defaultValues)
         setTransactionDate()
         setTransactionTime()
         setUnpredictableNumber()
@@ -81,35 +51,46 @@ class EMVTransactionRecord {
     }
 
     private fun setFloorLimitIfNeeded() {
-        if (emvTags["9F02"]?.contentEquals(floorLimit) == false) {
+        val value9F02 = emvTags["9F02"]
+        if (value9F02 != null && config.isExceedFloorLimit(value9F02)) {
             tvr.setFloorLimitExceed()
         }
     }
 
     private fun checkAndSetCVMLimit() {
         val value9F02 = emvTags["9F02"]
-        if (value9F02 != null && compareByteArrays(value9F02, cvmLimit) > 0) {
+        if (value9F02 != null && config.isExceedCVMLimit(value9F02)) {
             emvTags["9F6D"] = "C8".toByteArray()
             tip.setCVMRequired()
             exceedCVMLimit = true
         }
     }
 
+    fun loadAID(aid: ByteArray) {
+        emvTags.putAll(config.loadAID(aid))
+    }
+
     fun getEMVTags(): MutableMap<String, ByteArray> {
+        // Check 9F03 and if not exist, add it
+        if (!emvTags.containsKey("9F03"))
+            addEMVTagValue("9F03", "000000000000".toByteArray())
         // Need to add TVR
         addEMVTagValue("95", tvr.getValue())
         // Need to add TSI
         addEMVTagValue("9B", tsi.getValue())
+        // Need to add TIP for kernel 5
+        if (config.isKernel5())
+            addEMVTagValue("9F53", tip.getValue())
         return emvTags
     }
 
-    fun setAmount1(value: ByteArray) {
-        emvTags["9F02"] = value
+    fun setAmount1(value: String) {
+        emvTags["9F02"] = value.toByteArray()
         checkAndSetCVMLimit()
     }
 
-    fun setAmount2(value: ByteArray) {
-        emvTags["9F03"] = value
+    fun setAmount2(value: String) {
+        emvTags["9F03"] = value.toByteArray()
     }
 
     fun setModifiedTerminalType() {
@@ -167,7 +148,7 @@ class EMVTransactionRecord {
     }
 
     fun hasAmexRID(): Boolean {
-        return getAID().containsSequence(amex)
+        return config.isKernel4()
     }
 
     fun getIssuerPublicKeyRemainder(): ByteArray {
@@ -276,7 +257,7 @@ class EMVTransactionRecord {
                     // No CVM performed
                     addEMVTagValue("9F34", "3F0000".toByteArray())
                 }
-            } else if (exceedCVMLimit) {
+            } else if (exceedCVMLimit && config.isKernel3()) {
                 val ctq = emvTags["9F6C"]
                 if (ctq == null) {
                     // Only support signature for now
@@ -318,7 +299,7 @@ class EMVTransactionRecord {
     }
 
     fun processTermActionAnalysis(): Int {
-        if (getAID().containsSequence(discover) && emvTags.containsKey("9F71") && emvTags.containsKey("9F66"))  // 9F71 for Card Processing Requirement
+        if (config.isKernel6() && emvTags.containsKey("9F71") && emvTags.containsKey("9F66"))  // 9F71 for Card Processing Requirement
             return processTermActionAnalysisForKernel6()
 
         // Default values for TAC and IAC if not present in emvTags

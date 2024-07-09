@@ -57,11 +57,11 @@ class EMVParser(pProvider: IProvider, pContactLess: Boolean = true, pCapkXML: St
      * provider to send command to the card
      * @return data read from card or null if any provider match the card type
      */
-    fun readEmvCard(): MutableMap<String, ByteArray> {
+    fun readEmvCard(pAmount: String): MutableMap<String, ByteArray> {
         emvTransactionRecord.clear()
 
         // use PSE first
-        selectPSE(contactLess)
+        selectPSE(contactLess, pAmount)
         // Select AID
         val pdol: ByteArray? = selectAID(emvTransactionRecord.getAID())
         // GPO
@@ -100,7 +100,7 @@ class EMVParser(pProvider: IProvider, pContactLess: Boolean = true, pCapkXML: St
      * @param pContactLess
      * boolean to indicate contact less mode
      */
-    private fun selectPSE(pContactLess: Boolean) {
+    private fun selectPSE(pContactLess: Boolean, pAmount: String) {
         Log.d("APDUCommand", "SELECT PSE")
 
         val selectCommand = APDUCommand(CommandEnum.SELECT, if (pContactLess) ppse else pse, 0).toBytes()
@@ -132,6 +132,9 @@ class EMVParser(pProvider: IProvider, pContactLess: Boolean = true, pCapkXML: St
                                         emvTransactionRecord.addEMVTagValue(tlv.tag.getTag().uppercase(), tlv.value)
                                 }
                             }
+                            // Assume AID is inserted
+                            emvTransactionRecord.loadAID(emvTransactionRecord.getAID())
+                            emvTransactionRecord.setAmount1(pAmount)
                         }
                     }
                 }

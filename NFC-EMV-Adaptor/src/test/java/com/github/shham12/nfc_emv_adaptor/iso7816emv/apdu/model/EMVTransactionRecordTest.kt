@@ -23,41 +23,37 @@ class EMVTransactionRecordTest {
     @Test
     fun testClear() {
         emvTransactionRecord.clear()
+        emvTransactionRecord.loadAID("A0000000031010".toByteArray())
         val tags = emvTransactionRecord.getEMVTags()
         assertEquals("22", bytesToString(tags["9F35"]!!).uppercase())
-        assertEquals("D8004000", bytesToString(tags["9F6E"]!!).uppercase())
-        assertEquals("23C00000", bytesToString(tags["9F66"]!!).uppercase())
-        assertEquals("000000000001", bytesToString(tags["9F02"]!!).uppercase())
-        assertEquals("000000000000", bytesToString(tags["9F03"]!!).uppercase())
+        assertEquals("23C04000", bytesToString(tags["9F66"]!!).uppercase())
         assertEquals("0840", bytesToString(tags["9F1A"]!!).uppercase())
         assertEquals("0840", bytesToString(tags["5F2A"]!!).uppercase())
         assertEquals("00", bytesToString(tags["9C"]!!).uppercase())
-        assertEquals("000000", bytesToString(tags["9F34"]!!).uppercase())
         assertEquals("E0C8E06400", bytesToString(tags["9F40"]!!).uppercase())
-        assertEquals("0000000000", bytesToString(tags["9F1D"]!!).uppercase())
         assertEquals("8028C8", bytesToString(tags["9F33"]!!).uppercase())
-        assertEquals("000000", bytesToString(tags["9F34"]!!).uppercase())
-        assertEquals("000000", bytesToString(tags["9F4E"]!!).uppercase())
-        assertEquals("C0", bytesToString(tags["9F6D"]!!).uppercase())
+        assertEquals("4E464320454D562041646170746F72", bytesToString(tags["9F4E"]!!).uppercase())
     }
 
     @Test
     fun testSetAmount1() {
-        val amount = "000000000100".toByteArray()
+        val amount = "000000000100"
+        emvTransactionRecord.loadAID("A0000000031010".toByteArray())
         emvTransactionRecord.setAmount1(amount)
-        assertTrue(emvTransactionRecord.getEMVTags()["9F02"]!!.contentEquals(amount))
+        assertTrue(emvTransactionRecord.getEMVTags()["9F02"]!!.contentEquals(amount.toByteArray()))
     }
 
     @Test
     fun testSetAmount2() {
-        val amount = "000000000200".toByteArray()
+        val amount = "000000000200"
         emvTransactionRecord.setAmount2(amount)
-        assertTrue(emvTransactionRecord.getEMVTags()["9F03"]!!.contentEquals(amount))
+        assertTrue(emvTransactionRecord.getEMVTags()["9F03"]!!.contentEquals(amount.toByteArray()))
     }
 
     @Test
     fun testSetModifiedTerminalType() {
         emvTransactionRecord.clear()
+        emvTransactionRecord.loadAID("A00000002501".toByteArray())
         emvTransactionRecord.setModifiedTerminalType()
         val modifiedTerminalType = emvTransactionRecord.getEMVTags()["9F35"]
         assertNotNull(modifiedTerminalType)
@@ -138,6 +134,7 @@ class EMVTransactionRecordTest {
 
     @Test
     fun testHasAmexRID() {
+        emvTransactionRecord.loadAID("A00000002501".toByteArray())
         val aid = byteArrayOf(0xA0.toByte(), 0x00.toByte(), 0x00.toByte(), 0x00.toByte(), 0x25.toByte())
         emvTransactionRecord.setAID(aid)
         assertTrue(emvTransactionRecord.hasAmexRID())
@@ -252,11 +249,12 @@ class EMVTransactionRecordTest {
     @Test
     fun testProcessCVM_Signature() {
         emvTransactionRecord.clear()
+        emvTransactionRecord.loadAID("A0000000031010".toByteArray())
         val aip = byteArrayOf(0x10)  // Support CVM
         val cvmList = "000007D000000000410342031E06".toByteArray()  // Signature
         emvTransactionRecord.addEMVTagValue("82", aip)
         emvTransactionRecord.addEMVTagValue("8E", cvmList)
-        val amountExceedingLimit = "000000010001".toByteArray()  // CVM 제한을 초과하는 금액
+        val amountExceedingLimit = "000000010001"
         emvTransactionRecord.setAmount1(amountExceedingLimit)
         emvTransactionRecord.processCVM()
         assertArrayEquals("1E0000".toByteArray(), emvTransactionRecord.getEMVTags()["9F34"])
@@ -265,11 +263,12 @@ class EMVTransactionRecordTest {
     @Test
     fun testProcessCVM_NoCVMRequired() {
         emvTransactionRecord.clear()
+        emvTransactionRecord.loadAID("A0000000031010".toByteArray())
         val aip = byteArrayOf(0x10)  // Support CVM
         val cvmList = "1F02".toByteArray()  // No CVM required
         emvTransactionRecord.addEMVTagValue("82", aip)
         emvTransactionRecord.addEMVTagValue("8E", cvmList)
-        val amountExceedingLimit = "000000010001".toByteArray()  // CVM 제한을 초과하는 금액
+        val amountExceedingLimit = "000000010001"
         emvTransactionRecord.setAmount1(amountExceedingLimit)
         emvTransactionRecord.processCVM()
         assertArrayEquals("1F0002".toByteArray(), emvTransactionRecord.getEMVTags()["9F34"])
@@ -278,11 +277,12 @@ class EMVTransactionRecordTest {
     @Test
     fun testProcessCVM_NoMatchingCVM() {
         emvTransactionRecord.clear()
+        emvTransactionRecord.loadAID("A0000000031010".toByteArray())
         val aip = byteArrayOf(0x10)  // Support CVM
         val cvmList = "1E05".toByteArray()  // No matching CVM
         emvTransactionRecord.addEMVTagValue("82", aip)
         emvTransactionRecord.addEMVTagValue("8E", cvmList)
-        val amountExceedingLimit = "000000010001".toByteArray()  // CVM 제한을 초과하는 금액
+        val amountExceedingLimit = "000000010001"
         emvTransactionRecord.setAmount1(amountExceedingLimit)
         emvTransactionRecord.processCVM()
         assertArrayEquals("3F0001".toByteArray(), emvTransactionRecord.getEMVTags()["9F34"])
@@ -291,11 +291,12 @@ class EMVTransactionRecordTest {
     @Test
     fun testProcessCVM_NotSupportCVM() {
         emvTransactionRecord.clear()
+        emvTransactionRecord.loadAID("A0000000031010".toByteArray())
         val aip = byteArrayOf(0x00)  // Not support CVM
         val cvmList = "1E06".toByteArray()  // Signature
         emvTransactionRecord.addEMVTagValue("82", aip)
         emvTransactionRecord.addEMVTagValue("8E", cvmList)
-        val amountExceedingLimit = "000000010001".toByteArray()  // CVM 제한을 초과하는 금액
+        val amountExceedingLimit = "000000010001"
         emvTransactionRecord.setAmount1(amountExceedingLimit)
         emvTransactionRecord.processCVM()
         assertArrayEquals("3F0000".toByteArray(), emvTransactionRecord.getEMVTags()["9F34"])
@@ -304,11 +305,12 @@ class EMVTransactionRecordTest {
     @Test
     fun testProcessCVM_NoCVMPerformed() {
         emvTransactionRecord.clear()
+        emvTransactionRecord.loadAID("A0000000031010".toByteArray())
         val aip = byteArrayOf(0x10)  // Support CVM
         val cvmList = "1E06".toByteArray()  // Signature
         emvTransactionRecord.addEMVTagValue("82", aip)
         emvTransactionRecord.addEMVTagValue("8E", cvmList)
-        val amountNotExceedingLimit = "000000000001".toByteArray()  // CVM 제한을 초과하지 않는 금액
+        val amountNotExceedingLimit = "000000000001"
         emvTransactionRecord.setAmount1(amountNotExceedingLimit)
         emvTransactionRecord.processCVM()
         assertArrayEquals("3F0000".toByteArray(), emvTransactionRecord.getEMVTags()["9F34"])
@@ -317,9 +319,10 @@ class EMVTransactionRecordTest {
     @Test
     fun testProcessCVM_NoCVMList() {
         emvTransactionRecord.clear()
+        emvTransactionRecord.loadAID("A0000001523010".toByteArray())
         val aip = byteArrayOf(0x10)  // Support CVM
         emvTransactionRecord.addEMVTagValue("82", aip)
-        val amountExceedingLimit = "000000010001".toByteArray()  // CVM 제한을 초과하는 금액
+        val amountExceedingLimit = "000000010001"
         emvTransactionRecord.setAmount1(amountExceedingLimit)
         emvTransactionRecord.processCVM()
         assertArrayEquals("3F0000".toByteArray(), emvTransactionRecord.getEMVTags()["9F34"])
@@ -329,6 +332,8 @@ class EMVTransactionRecordTest {
     @Test
     fun testProcessTermRiskManagement() {
         emvTransactionRecord.clear()
+        emvTransactionRecord.loadAID("A0000001523010".toByteArray())
+        emvTransactionRecord.setAmount1("000000000001")
         val aip = byteArrayOf(0x08)  // Support Terminal Risk Management
         emvTransactionRecord.addEMVTagValue("82", aip)
         emvTransactionRecord.processTermRiskManagement()
@@ -339,6 +344,8 @@ class EMVTransactionRecordTest {
     @Test
     fun testProcessTermActionAnalysisWithTvrAndArqc() {
         emvTransactionRecord.clear()
+        emvTransactionRecord.loadAID("A0000000031010".toByteArray())
+        emvTransactionRecord.setAmount1("000000000001")
         emvTransactionRecord.addEMVTagValue("82", byteArrayOf(0x18, 0x80.toByte()))
         emvTransactionRecord.processTermRiskManagement()
         emvTransactionRecord.addEMVTagValue("9F0D", byteArrayOf(0x11, 0x11, 0x11, 0x11, 0x11))
@@ -354,6 +361,8 @@ class EMVTransactionRecordTest {
     @Test
     fun testProcessTermActionAnalysisWithTvrAndAac() {
         emvTransactionRecord.clear()
+        emvTransactionRecord.loadAID("A0000000031010".toByteArray())
+        emvTransactionRecord.setAmount1("000000000001")
         emvTransactionRecord.addEMVTagValue("82", byteArrayOf(0x18, 0x80.toByte()))
         emvTransactionRecord.processTermRiskManagement()
         emvTransactionRecord.addEMVTagValue("9F0D", byteArrayOf(0x00, 0x00, 0x00, 0x00, 0x00))
@@ -369,6 +378,7 @@ class EMVTransactionRecordTest {
     @Test
     fun testProcessTermActionAnalysisWithTvrAndTc() {
         emvTransactionRecord.clear()
+        emvTransactionRecord.loadAID("A0000000031010".toByteArray())
         emvTransactionRecord.addEMVTagValue("95", byteArrayOf(0x00, 0x00, 0x00, 0x00, 0x40))
         emvTransactionRecord.addEMVTagValue("9F0D", byteArrayOf(0x00, 0x00, 0x00, 0x00, 0x00))
         emvTransactionRecord.addEMVTagValue("9F0E", byteArrayOf(0x00, 0x00, 0x00, 0x00, 0x00))

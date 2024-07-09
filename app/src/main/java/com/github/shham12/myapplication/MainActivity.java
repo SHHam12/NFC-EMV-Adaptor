@@ -405,7 +405,7 @@ public class MainActivity extends AppCompatActivity {
                     Log.d(TAG, "IsoDep connection established");
                     IProvider temp = new Provider(isoDep);
                     EMVParser parser = new EMVParser(temp, true, CAPK);
-                    Map<String, byte[]> data = parser.readEmvCard();
+                    Map<String, byte[]> data = parser.readEmvCard("000000000001");
 
                     isoDep.close();
                     Log.d(TAG, "IsoDep connection closed");
