@@ -12,6 +12,7 @@ import com.github.shham12.nfc_emv_adaptor.iso7816emv.enum.CommandEnum
 import com.github.shham12.nfc_emv_adaptor.iso7816emv.model.EMVTransactionRecord
 import com.github.shham12.nfc_emv_adaptor.parser.IProvider
 import com.github.shham12.nfc_emv_adaptor.parser.ResponseFormat1Parser
+import com.github.shham12.nfc_emv_adaptor.util.AFLUtils
 import com.github.shham12.nfc_emv_adaptor.util.BytesUtils.bytesToString
 import com.github.shham12.nfc_emv_adaptor.util.DOLParser
 import com.github.shham12.nfc_emv_adaptor.util.DOLParser.parseDOL
@@ -225,12 +226,12 @@ class EMVParser(pProvider: IProvider, pContactLess: Boolean = true, pCapkXML: St
             Log.d("AFLData", data.joinToString("") { "%02x".format(it) })
 
             // Read Command
-            val aflRecords: List<AFL> = extractAFL(data)
+            val aflRecords: List<AFL> = AFLUtils.extractAFL(data)
             if (aflRecords.isEmpty()) {
                 Log.d("NFC-EMV-Adaptor", "No AFL records found")
             } else {
                 // Generate Read Record commands from AFL records
-                val readRecordCommands: List<APDUCommand> = generateReadRecordCommands(aflRecords)
+                val readRecordCommands: List<APDUCommand> = AFLUtils.generateReadRecordCommands(aflRecords)
 
                 // Send Read Record commands and handle responses
                 for (command in readRecordCommands) {
@@ -254,48 +255,6 @@ class EMVParser(pProvider: IProvider, pContactLess: Boolean = true, pCapkXML: St
             }
         }
         return cdol1
-    }
-
-    private fun generateReadRecordCommands(pAFLRecords: List<AFL?>): List<APDUCommand> {
-        val apduCommands: MutableList<APDUCommand> = ArrayList()
-
-        for (record in pAFLRecords) {
-            record?.let { rec ->
-                for (i in rec.startRecord..rec.endRecord) {
-                    val apdu = APDUCommand(CommandEnum.READ_RECORD, i, (rec.sfi shl 3) or 0x04, 0x00)
-                    apduCommands.add(apdu)
-                }
-            }
-        }
-
-        return apduCommands
-    }
-
-    /**
-     * Extract list of application file locator from Afl response
-     *
-     * @param pAFL
-     *            AFL data
-     * @return list of AFL
-     */
-    private fun extractAFL(pAFL: ByteArray): List<AFL> {
-        val aflRecords = mutableListOf<AFL>()
-        var index = 0 // Typically the data starts after the first four bytes
-
-        while (index < pAFL.size - 2) {
-            val sfi = (pAFL[index].toInt() shr 3) and 0x1F
-            val startRecord = pAFL[index + 1].toInt() and 0xFF
-            val endRecord = pAFL[index + 2].toInt() and 0xFF
-            val offlineRecords = pAFL[index + 3].toInt() and 0xFF
-
-            val record = AFL(sfi, startRecord, endRecord, offlineRecords)
-
-            Log.d("AFLRecord", "$sfi $startRecord $endRecord $offlineRecords")
-            aflRecords.add(record)
-            index += 4 // Move to the next AFL entry
-        }
-
-        return aflRecords
     }
 
     /**
