@@ -113,7 +113,7 @@ class Configuration {
 
     fun loadAID(pAid: ByteArray): Map<String, ByteArray> {
         setAID(pAid)
-        return emvData[selectedAID!!] ?: throw TLVException("Declined (Not support AID: $selectedAID!!)")
+        return emvData[selectedAID] ?: throw TLVException("Declined (Not support AID: $selectedAID)")
     }
 
     fun getSelectedAID(): String = selectedAID

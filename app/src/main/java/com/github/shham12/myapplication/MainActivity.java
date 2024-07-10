@@ -1,5 +1,6 @@
 package com.github.shham12.myapplication;
 
+import android.app.AlertDialog;
 import android.app.PendingIntent;
 import android.content.Intent;
 import android.content.IntentFilter;
@@ -8,6 +9,10 @@ import android.nfc.Tag;
 import android.nfc.tech.IsoDep;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.Gravity;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -26,7 +31,12 @@ public class MainActivity extends AppCompatActivity {
     private static final String TAG = "NFC";
     private NfcAdapter nfcAdapter;
     private TextView textView;
-
+    private boolean isNfcEnabled = false;
+    private PendingIntent pendingIntent;
+    private IntentFilter[] intentFilters;
+    private String[][] techList;
+    private Button nfcButton;
+    private AlertDialog nfcDialog;
     private static final String CAPK =
             "<CAPK>\n" +
             "    <ExtensionData />\n" +
@@ -340,41 +350,49 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
         textView = findViewById(R.id.textView);
+        nfcButton = findViewById(R.id.nfcButton);
 
         nfcAdapter = NfcAdapter.getDefaultAdapter(this);
         if (nfcAdapter == null) {
             Toast.makeText(this, "NFC is not available on this device.", Toast.LENGTH_SHORT).show();
             finish();
         }
+
+        nfcButton.setOnClickListener(v -> {
+            if (isNfcEnabled) {
+                disableNfc();
+            } else {
+                enableNfc();
+                showNfcDialog();
+            }
+        });
+
+        Intent intent = new Intent(this, getClass()).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        pendingIntent = PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_MUTABLE);
+        intentFilters = new IntentFilter[]{};
+        techList = new String[][]{new String[]{IsoDep.class.getName()}};
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        Intent intent = new Intent(this, getClass()).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
-        PendingIntent pendingIntent = PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_MUTABLE);
-        IntentFilter[] filters = new IntentFilter[]{};
-        String[][] techList = new String[][]{new String[]{IsoDep.class.getName()}};
-        nfcAdapter.enableForegroundDispatch(this, pendingIntent, filters, techList);
-        Log.d(TAG, "Foreground dispatch enabled");
+        if (isNfcEnabled) {
+            enableNfc();
+        }
     }
 
     @Override
     protected void onPause() {
         super.onPause();
-        nfcAdapter.disableForegroundDispatch(this);
-        Log.d(TAG, "Foreground dispatch disabled");
+        disableNfc();
     }
 
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
-        Log.d(TAG, "NFC Intent received");
-        Log.d(TAG, "NFC Intent getAction:" + intent.getAction());
         if (NfcAdapter.ACTION_TECH_DISCOVERED.equals(intent.getAction())) {
             Tag tag = intent.getParcelableExtra(NfcAdapter.EXTRA_TAG);
             if (tag != null) {
-                Log.d(TAG, "NFC tag discovered");
                 String[] techList = tag.getTechList();
                 boolean isoDepSupported = false;
                 for (String tech : techList) {
@@ -388,12 +406,36 @@ public class MainActivity extends AppCompatActivity {
                     readFromNfc(tag);
                 } else {
                     Toast.makeText(this, "This NFC tag does not support IsoDep.", Toast.LENGTH_SHORT).show();
-                    Log.d(TAG, "IsoDep not supported by this tag");
                 }
-            } else {
-                Log.d(TAG, "No NFC tag found in intent");
             }
         }
+    }
+
+    private void enableNfc() {
+        nfcAdapter.enableForegroundDispatch(this, pendingIntent, intentFilters, techList);
+        nfcButton.setText("Stop NFC");
+        isNfcEnabled = true;
+    }
+
+    private void disableNfc() {
+        nfcAdapter.disableForegroundDispatch(this);
+        nfcButton.setText("Start NFC");
+        if (nfcDialog != null)
+            nfcDialog.dismiss();
+        isNfcEnabled = false;
+    }
+
+    private void showNfcDialog() {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        LayoutInflater inflater = this.getLayoutInflater();
+        View dialogView = inflater.inflate(R.layout.dialog_nfc, null);
+        builder.setView(dialogView)
+                .setCancelable(true)
+                .setOnCancelListener(dialog -> disableNfc());
+        nfcDialog = builder.create();
+        nfcDialog.getWindow().setGravity(Gravity.TOP);
+
+        nfcDialog.show();
     }
 
     private void readFromNfc(Tag tag) {
@@ -402,26 +444,22 @@ public class MainActivity extends AppCompatActivity {
             new Thread(() -> {
                 try {
                     isoDep.connect();
-                    Log.d(TAG, "IsoDep connection established");
                     IProvider temp = new Provider(isoDep);
                     EMVParser parser = new EMVParser(temp, true, CAPK);
                     Map<String, byte[]> data = parser.readEmvCard("000000000001");
 
                     isoDep.close();
-                    Log.d(TAG, "IsoDep connection closed");
 
                     String value50 = new String(data.get("50"));
                     String value5A = data.containsKey("5A") ? bytesToHex(data.get("5A")) : "N/A";
                     String value57 = data.containsKey("57") ? bytesToHex(data.get("57")) : "N/A";
                     runOnUiThread(() -> {
-                        textView.setText("Application Label: " + value50 + "\nCard Number: " + value5A+ "\nTrack 2 Data: " + value57);
+                        textView.setText("Application Label: " + value50 + "\nCard Number: " + value5A + "\nTrack 2 Data: " + value57);
                     });
                 } catch (Exception e) {
                     Log.e(TAG, "Error reading NFC tag", e);
                 }
             }).start();
-        } else {
-            Log.d(TAG, "IsoDep not supported by this tag");
         }
     }
 
