@@ -48,6 +48,8 @@ class EMVParser(pProvider: IProvider, pContactLess: Boolean = true, pCapkXML: St
 
     private var emvTransactionRecord = EMVTransactionRecord()
 
+    private var applicationCandidate: List<TLV>? = null
+
     init {
         capkTable = CaPublicKeyTable(pCapkXML)
     }
@@ -115,31 +117,43 @@ class EMVParser(pProvider: IProvider, pContactLess: Boolean = true, pCapkXML: St
                     TLVParser.parseEx(tlvData.value).getTLVList().let { appTemplates ->
                         var application = appTemplates.firstOrNull()
 
-                        // If application Template is more than 2, select high priority AID
-                        if (appTemplates.size > 1) {
-                            appTemplates.forEach { tlv ->
-                                val priorityIndicator = TLVParser.parseEx(tlv.value).searchByTag("87")?.value
-                                if (priorityIndicator?.contains(0x01.toByte()) == true) {
-                                    application = tlv
+                        // If application Template is more than 2, select high priority AID and save other AIDs
+                        val candidateTemplates = appTemplates.filter { it.tag.getTag() == "61" }
+                        if (candidateTemplates.size > 1) {
+                            applicationCandidate = candidateTemplates
+                            applicationCandidate?.let { candidates ->
+                                candidates.forEach { tlv ->
+                                    val priorityIndicator = TLVParser.parseEx(tlv.value).searchByTag("87")?.value
+                                    if (priorityIndicator?.contains(0x01.toByte()) == true) {
+                                        application = tlv
+                                        applicationCandidate = candidates.filter { it != tlv }
+                                    }
                                 }
                             }
                         }
 
-                        application?.let{tlv ->
-                            tlv.value.let{ app ->
-                                // Parse application and populate to emvTags
-                                TLVParser.parseEx(app).getTLVList().forEach { tlv: TLV ->
-                                    if (!tlv.tag.isConstructed())
-                                        emvTransactionRecord.addEMVTagValue(tlv.tag.getTag().uppercase(), tlv.value)
-                                }
-                            }
-                            // Assume AID is inserted
-                            emvTransactionRecord.loadAID(emvTransactionRecord.getAID())
-                            emvTransactionRecord.setAmount1(pAmount)
-                        }
+                        setApplicationWithAmount(application, pAmount)
                     }
                 }
             }
+        }
+    }
+
+    private fun setApplicationWithAmount(
+        application: TLV?,
+        pAmount: String
+    ) {
+        application?.let { tlv ->
+            tlv.value.let { app ->
+                // Parse application and populate to emvTags
+                TLVParser.parseEx(app).getTLVList().forEach { tlv: TLV ->
+                    if (!tlv.tag.isConstructed())
+                        emvTransactionRecord.addEMVTagValue(tlv.tag.getTag().uppercase(), tlv.value)
+                }
+            }
+            // Assume AID is inserted
+            emvTransactionRecord.loadAID(emvTransactionRecord.getAID())
+            emvTransactionRecord.setAmount1(pAmount)
         }
     }
 
@@ -205,6 +219,8 @@ class EMVParser(pProvider: IProvider, pContactLess: Boolean = true, pCapkXML: St
             } ?: TLVParser.parseEx(data).searchByTag("94")?.value
 
             return aflData
+        } else if (response.isConditionNotSatisfied()) {
+            // TODO: Handle condition not satisfied
         } else if (response.isInvalidated()) {
             throw TLVException("Try another interface")
         } else

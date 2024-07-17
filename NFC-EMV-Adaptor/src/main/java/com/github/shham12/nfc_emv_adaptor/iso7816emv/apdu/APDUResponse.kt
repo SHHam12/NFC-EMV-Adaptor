@@ -26,6 +26,10 @@ class APDUResponse(response: ByteArray) {
         return sw1 == 0x69.toByte() && sw2 == 0x84.toByte()
     }
 
+    fun isConditionNotSatisfied(): Boolean {
+        return sw1 == 0x69.toByte() && sw2 == 0x85.toByte()
+    }
+
     fun toBytes(): ByteArray {
         return responseData + sw1 + sw2
     }
