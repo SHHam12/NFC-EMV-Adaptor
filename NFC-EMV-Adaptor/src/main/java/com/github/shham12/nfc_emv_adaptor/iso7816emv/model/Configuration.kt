@@ -63,12 +63,12 @@ class Configuration {
                 emvData[aid]?.put("9F6E", "D8004000".toByteArray()) // Amex Enhanced Contactless Reader Capabilities
             } else if (aid.toByteArray().containsSequence("A000000003".toByteArray())
                 || aid.contentEquals("A0000000980840")) { // Kernel 3
-                emvData[aid]?.put("9F66", "23C04000".toByteArray())
+                emvData[aid]?.put("9F66", "22C04000".toByteArray())
             } else if (aid.toByteArray().containsSequence("A000000152".toByteArray())) { // Kernel 6
                 emvData[aid]?.put("9F66", "22C04000".toByteArray())
             } else if (aid.toByteArray().containsSequence("A000000065".toByteArray())) { // kernel 7
-                emvData[aid]?.put("9F66", "63C04000".toByteArray())
-            } else if (aid.toByteArray().containsSequence("A000000065".toByteArray())) {
+                emvData[aid]?.put("9F66", "62C04000".toByteArray())
+            } else if (aid.toByteArray().containsSequence("A000000004".toByteArray())) {
                 emvData[aid]?.put("9F1D", "A980800000".toByteArray())
                 emvData[aid]?.put("DF8117", "80".toByteArray())
                 emvData[aid]?.put("DF8118", "20".toByteArray())

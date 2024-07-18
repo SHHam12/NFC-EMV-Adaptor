@@ -68,7 +68,7 @@ class EMVParser(pProvider: IProvider, pContactLess: Boolean = true, pCapkXML: St
         // Select AID
         val pdol: ByteArray? = selectAID(emvTransactionRecord.getAID())
         // GPO
-        val aflData: ByteArray? = gpo(pdol)
+        val aflData: ByteArray? = gpo(pdol, pAmount)
         // Read Record
         val cdol1: ByteArray? = readRecord(aflData)
 
@@ -116,22 +116,12 @@ class EMVParser(pProvider: IProvider, pContactLess: Boolean = true, pCapkXML: St
                     // Parse File Control Information (FCI) Issuer Discretionary Data
                     TLVParser.parseEx(tlvData.value).getTLVList().let { appTemplates ->
                         var application = appTemplates.firstOrNull()
-
                         // If application Template is more than 2, select high priority AID and save other AIDs
                         val candidateTemplates = appTemplates.filter { it.tag.getTag() == "61" }
                         if (candidateTemplates.size > 1) {
                             applicationCandidate = candidateTemplates
-                            applicationCandidate?.let { candidates ->
-                                candidates.forEach { tlv ->
-                                    val priorityIndicator = TLVParser.parseEx(tlv.value).searchByTag("87")?.value
-                                    if (priorityIndicator?.contains(0x01.toByte()) == true) {
-                                        application = tlv
-                                        applicationCandidate = candidates.filter { it != tlv }
-                                    }
-                                }
-                            }
+                            application = selectHigherPriorityApplication(candidateTemplates)
                         }
-
                         setApplicationWithAmount(application, pAmount)
                     }
                 }
@@ -139,11 +129,25 @@ class EMVParser(pProvider: IProvider, pContactLess: Boolean = true, pCapkXML: St
         }
     }
 
-    private fun setApplicationWithAmount(
-        application: TLV?,
-        pAmount: String
+    private fun selectHigherPriorityApplication(pCandidateTemplates: List<TLV>): TLV? {
+        // Find the TLV with the higher priorityIndicator
+        val applicationWithHigherPriority = pCandidateTemplates.minByOrNull { tlv ->
+            // Extract the priorityIndicator as a byte array
+            val priorityIndicator = TLVParser.parseEx(tlv.value).searchByTag("87")?.value
+            // Convert the first byte of priorityIndicator to an integer for comparison
+            priorityIndicator?.firstOrNull()?.toInt()
+                ?: Int.MAX_VALUE // Default to MAX_VALUE if priorityIndicator is null
+        }
+        // If we found an application with minimum priority
+        applicationWithHigherPriority?.let { highPriorityTlv ->
+            applicationCandidate = pCandidateTemplates.filter { it != highPriorityTlv }
+        }
+        return applicationWithHigherPriority
+    }
+
+    private fun setApplicationWithAmount(pApplication: TLV?, pAmount: String
     ) {
-        application?.let { tlv ->
+        pApplication?.let { tlv ->
             tlv.value.let { app ->
                 // Parse application and populate to emvTags
                 TLVParser.parseEx(app).getTLVList().forEach { tlv: TLV ->
@@ -189,44 +193,48 @@ class EMVParser(pProvider: IProvider, pContactLess: Boolean = true, pCapkXML: St
      *          PDOL data
      * @return AFL Data
      */
-    private fun gpo(pPDOL: ByteArray?): ByteArray? {
+    private fun gpo(pPDOL: ByteArray?, pAmount: String): ByteArray? {
         Log.d("APDUCommand", "GPO")
         val pdolData: List<DOL>? = pPDOL?.let { parseDOL(it) }
         val gpoData = APDUCommand(CommandEnum.GPO, DOLParser.generateDOLdata(pdolData, true, emvTransactionRecord), 0).toBytes()
         val response = APDUResponse(provider!!.transceive(gpoData)!!)
 
-        if (response.isSuccess()) {
-            TLVParser.parseEx(response.getData()).getTLVList().forEach { tlv ->
-                if (!tlv.tag.isConstructed()) {
-                    emvTransactionRecord.addEMVTagValue(tlv.tag.getTag().uppercase(), tlv.value)
+        return if (response.isSuccess()) {
+            processGpoSuccess(response.getData())
+        } else {
+            handleGpoFailure(response, pAmount)
+        }
+    }
+
+    private fun processGpoSuccess(data: ByteArray): ByteArray? {
+        TLVParser.parseEx(data).getTLVList().forEach { tlv ->
+            if (!tlv.tag.isConstructed()) emvTransactionRecord.addEMVTagValue(tlv.tag.getTag().uppercase(), tlv.value)
+        }
+
+        Log.d("NFC-EMV-Adaptor", data.joinToString("") { "%02x".format(it) })
+        val msgTemplate = TLVParser.parseEx(data).searchByTag("80")
+
+        return msgTemplate?.let {
+            ResponseFormat1Parser.parse(CommandEnum.GPO, it.value).apply {
+                getTLVList().forEach { tlv ->
+                    if (!tlv.tag.isConstructed()) emvTransactionRecord.addEMVTagValue(tlv.tag.getTag().uppercase(), tlv.value)
                 }
-            }
+            }.searchByTag("94")?.value
+        } ?: TLVParser.parseEx(data).searchByTag("94")?.value
+    }
 
-            Log.d("NFC-EMV-Adaptor", response.getData().joinToString("") { "%02x".format(it) })
-
-            // Extract data from Response Message Template
-            val data = response.getData()
-            val msgTemplate = TLVParser.parseEx(data).searchByTag("80")
-
-            val aflData = msgTemplate?.let {
-                ResponseFormat1Parser.parse(CommandEnum.GPO, it.value).apply {
-                    getTLVList().forEach { tlv ->
-                        if (!tlv.tag.isConstructed()) {
-                            emvTransactionRecord.addEMVTagValue(tlv.tag.getTag().uppercase(), tlv.value)
-                        }
-                    }
-                }.searchByTag("94")?.value
-            } ?: TLVParser.parseEx(data).searchByTag("94")?.value
-
-            return aflData
-        } else if (response.isConditionNotSatisfied()) {
-            // TODO: Handle condition not satisfied
+    private fun handleGpoFailure(response: APDUResponse, pAmount: String): ByteArray? {
+        return if (response.isConditionNotSatisfied() && applicationCandidate != null) {
+            emvTransactionRecord.clear()
+            val candidate = selectHigherPriorityApplication(applicationCandidate!!)
+            setApplicationWithAmount(candidate, pAmount)
+            val pdol = selectAID(emvTransactionRecord.getAID())
+            gpo(pdol, pAmount) // Call gpo again with the same PDOL
         } else if (response.isInvalidated()) {
             throw TLVException("Try another interface")
-        } else
+        } else {
             throw TLVException(bytesToString(response.toBytes()).uppercase())
-
-        return null
+        }
     }
 
     /**
