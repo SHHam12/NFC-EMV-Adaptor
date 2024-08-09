@@ -6,9 +6,9 @@ import com.github.shham12.nfc_emv_adaptor.iso7816emv.CaPublicKeyTable
 import com.github.shham12.nfc_emv_adaptor.iso7816emv.TLV
 import com.github.shham12.nfc_emv_adaptor.iso7816emv.apdu.APDUCommand
 import com.github.shham12.nfc_emv_adaptor.iso7816emv.apdu.APDUResponse
+import com.github.shham12.nfc_emv_adaptor.iso7816emv.enum.CommandEnum
 import com.github.shham12.nfc_emv_adaptor.iso7816emv.model.AFL
 import com.github.shham12.nfc_emv_adaptor.iso7816emv.model.DOL
-import com.github.shham12.nfc_emv_adaptor.iso7816emv.enum.CommandEnum
 import com.github.shham12.nfc_emv_adaptor.iso7816emv.model.EMVTransactionRecord
 import com.github.shham12.nfc_emv_adaptor.parser.IProvider
 import com.github.shham12.nfc_emv_adaptor.parser.ResponseFormat1Parser
@@ -19,7 +19,7 @@ import com.github.shham12.nfc_emv_adaptor.util.DOLParser.parseDOL
 import com.github.shham12.nfc_emv_adaptor.util.TLVParser
 
 
-class EMVParser(pProvider: IProvider, pContactLess: Boolean = true, pCapkXML: String) {
+class EMVParser(pProvider: IProvider, pContactLess: Boolean = true, pCapkJSON: String) {
     /**
      * Max record for SFI
      */
@@ -51,7 +51,7 @@ class EMVParser(pProvider: IProvider, pContactLess: Boolean = true, pCapkXML: St
     private var applicationCandidate: List<TLV>? = null
 
     init {
-        capkTable = CaPublicKeyTable(pCapkXML)
+        capkTable = CaPublicKeyTable(pCapkJSON)
     }
 
     /**

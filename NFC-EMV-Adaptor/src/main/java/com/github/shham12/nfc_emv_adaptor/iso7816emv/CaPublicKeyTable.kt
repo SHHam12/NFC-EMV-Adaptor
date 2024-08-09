@@ -1,15 +1,14 @@
 package com.github.shham12.nfc_emv_adaptor.iso7816emv
 
 import com.github.shham12.nfc_emv_adaptor.iso7816emv.impl.CaPublicKey
-import org.w3c.dom.Element
-import java.io.ByteArrayInputStream
-import javax.xml.parsers.DocumentBuilderFactory
+import com.google.gson.GsonBuilder
+import com.google.gson.reflect.TypeToken
 
-class CaPublicKeyTable(xmlString: String) {
+class CaPublicKeyTable(pJSONString: String) {
     private val publicKeyList: List<CaPublicKey>
 
     init {
-        publicKeyList = parseXmlToCaPublicKeys(xmlString)
+        publicKeyList = parseJsonToCaPublicKeys(pJSONString)
     }
 
     fun getPublicKeys(): List<CaPublicKey> {
@@ -20,27 +19,14 @@ class CaPublicKeyTable(xmlString: String) {
         return publicKeyList.find { it.rid == rid && it.index == index }
     }
 
-    private fun parseXmlToCaPublicKeys(xmlString: String): List<CaPublicKey> {
-        val factory = DocumentBuilderFactory.newInstance()
-        val builder = factory.newDocumentBuilder()
-        val xmlInput = ByteArrayInputStream(xmlString.toByteArray())
-        val document = builder.parse(xmlInput)
+    private fun parseJsonToCaPublicKeys(pJSONString: String): List<CaPublicKey> {
+        val gson = GsonBuilder()
+            .excludeFieldsWithoutExposeAnnotation()  // 필드에 @Expose 어노테이션이 없는 경우 제외
+            .create()
+        val type = object : TypeToken<List<CaPublicKey>>() {}.type
+        val publicKeyList: List<CaPublicKey> = gson.fromJson(pJSONString, type)
 
-        val publicKeyList = mutableListOf<CaPublicKey>()
-        val arrayOfCapkElements = document.getElementsByTagName("ArrayOfCAPK").item(0) as Element
-        val capkElements = arrayOfCapkElements.getElementsByTagName("CAPK")
-
-        for (i in 0 until capkElements.length) {
-            val element = capkElements.item(i) as Element
-            val rid = element.getElementsByTagName("RID").item(0).textContent
-            val index = element.getElementsByTagName("PKIndex").item(0).textContent
-            val exponent = element.getElementsByTagName("Exponent").item(0).textContent
-            val modulus = element.getElementsByTagName("Modulus").item(0).textContent
-
-            val caPublicKey = CaPublicKey(rid, index, exponent, modulus)
-            caPublicKey.name = "CA public key ($rid,$index)"
-            publicKeyList.add(caPublicKey)
-        }
+        publicKeyList.forEach { it.name = "CA public key (${it.rid},${it.index})" }
 
         return publicKeyList
     }
