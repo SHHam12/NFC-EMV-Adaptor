@@ -5,6 +5,9 @@ import com.github.shham12.nfc_emv_adaptor.util.BytesUtils
 import com.github.shham12.nfc_emv_adaptor.util.BytesUtils.bytesToString
 import com.github.shham12.nfc_emv_adaptor.util.BytesUtils.containsSequence
 import com.github.shham12.nfc_emv_adaptor.util.BytesUtils.toByteArray
+import com.google.gson.Gson
+import com.google.gson.JsonArray
+
 
 class Configuration {
     private val emvData: MutableMap<String, MutableMap<String, ByteArray>> = mutableMapOf()
@@ -56,7 +59,7 @@ class Configuration {
 
                 "DF19" to "000000000000".toByteArray(),     // Terminal Contactless Offline floor limit
                 "DF20" to "999999999999".toByteArray(),     // Terminal Contactless Transaction limit
-                "DF20" to "000000001000".toByteArray(),     // Terminal Contactless CVM limit
+                "DF21" to "000000001000".toByteArray(),     // Terminal Contactless CVM limit
             )
             if (aid.toByteArray().containsSequence("A000000025".toByteArray())) { // Kernel 4
                 emvData[aid]?.put("9F6D", "C0".toByteArray()) // CVM Required 0XC8 CVM Not Required 0XC0
@@ -134,4 +137,49 @@ class Configuration {
     fun isKernel4(): Boolean = selectedAID.startsWith(amex)
     fun isKernel5(): Boolean = selectedAID.startsWith(jcb)
     fun isKernel6(): Boolean = selectedAID.startsWith(discover)
+
+    fun setConfiguration(pAIDsJSON: String) {
+        val emvTagPattern = Regex("^[0-9A-Fa-f]{2,6}$")
+
+        val gson = Gson()
+
+        val aidsFromJson = mutableSetOf<String>()
+
+        try {
+            // Parse the JSON string into a JsonArray
+            val jsonArray: JsonArray = gson.fromJson(pAIDsJSON, JsonArray::class.java)
+
+            // Iterate over each element in the JsonArray
+            for (jsonElement in jsonArray) {
+                val jsonObject = jsonElement.asJsonObject
+                val aid = jsonObject.get("9F06")?.asString.orEmpty()
+
+                if (aid.isNotEmpty()) {
+                    aidsFromJson.add(aid)
+                    emvData.remove(aid)
+                    // Iterate over each entry in the JsonObject
+                    for ((key, value) in jsonObject.entrySet()) {
+                        // Skip processing if the key is "9F06"
+                        if (key == "9F06") continue
+
+                        if (key.matches(emvTagPattern)) {
+                            val stringValue = value.asString
+                            val byteArray = stringValue.toByteArray()
+
+                            if (byteArray.isNotEmpty()) {
+                                updateOrInsert(aid, key, byteArray)
+                            }
+                        }
+                    }
+                }
+            }
+
+            val keysToRemove = emvData.keys.filter { it !in aidsFromJson }
+            keysToRemove.forEach { aid ->
+                emvData.remove(aid)
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
 }

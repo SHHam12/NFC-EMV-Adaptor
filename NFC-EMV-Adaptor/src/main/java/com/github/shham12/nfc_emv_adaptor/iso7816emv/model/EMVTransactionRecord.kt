@@ -5,10 +5,8 @@ import com.github.shham12.nfc_emv_adaptor.iso7816emv.CaPublicKeyTable
 import com.github.shham12.nfc_emv_adaptor.parser.SignedDynamicApplicationDataDecoder
 import com.github.shham12.nfc_emv_adaptor.parser.SignedStaticApplicationDataDecoder
 import com.github.shham12.nfc_emv_adaptor.util.BytesUtils
-import com.github.shham12.nfc_emv_adaptor.util.BytesUtils.compareByteArrays
 import com.github.shham12.nfc_emv_adaptor.util.BytesUtils.containsSequence
 import com.github.shham12.nfc_emv_adaptor.util.BytesUtils.matchBitByBitIndex
-import com.github.shham12.nfc_emv_adaptor.util.BytesUtils.setBit
 import com.github.shham12.nfc_emv_adaptor.util.BytesUtils.toByteArray
 import java.security.SecureRandom
 import java.time.LocalDate
@@ -40,6 +38,10 @@ class EMVTransactionRecord {
 
     fun clear() {
         resetEmvTags()
+    }
+
+    fun setConfiguration(pAIDsJSON: String){
+        config.setConfiguration(pAIDsJSON)
     }
 
     private fun resetEmvTags() {

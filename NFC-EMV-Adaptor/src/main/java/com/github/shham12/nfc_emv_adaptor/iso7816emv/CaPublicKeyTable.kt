@@ -21,7 +21,7 @@ class CaPublicKeyTable(pJSONString: String) {
 
     private fun parseJsonToCaPublicKeys(pJSONString: String): List<CaPublicKey> {
         val gson = GsonBuilder()
-            .excludeFieldsWithoutExposeAnnotation()  // 필드에 @Expose 어노테이션이 없는 경우 제외
+            .excludeFieldsWithoutExposeAnnotation()
             .create()
         val type = object : TypeToken<List<CaPublicKey>>() {}.type
         val publicKeyList: List<CaPublicKey> = gson.fromJson(pJSONString, type)

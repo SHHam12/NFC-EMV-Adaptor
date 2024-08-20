@@ -140,8 +140,10 @@ public class MainActivity extends AppCompatActivity {
                     isoDep.connect();
                     IProvider temp = new Provider(isoDep);
                     String CAPK = getString(R.string.capk_data);
-                    Log.d("JSON", CAPK);
-                    EMVParser parser = new EMVParser(temp, true, CAPK);
+                    String AID = getString(R.string.aid_data);
+                    Log.d("CAPK JSON", CAPK);
+                    Log.d("AID JSON", AID);
+                    EMVParser parser = new EMVParser(temp, true, CAPK, AID);
                     Map<String, byte[]> data = parser.readEmvCard("000000000001");
 
                     isoDep.close();

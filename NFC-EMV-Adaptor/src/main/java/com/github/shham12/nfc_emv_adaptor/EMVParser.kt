@@ -19,7 +19,7 @@ import com.github.shham12.nfc_emv_adaptor.util.DOLParser.parseDOL
 import com.github.shham12.nfc_emv_adaptor.util.TLVParser
 
 
-class EMVParser(pProvider: IProvider, pContactLess: Boolean = true, pCapkJSON: String) {
+class EMVParser(pProvider: IProvider, pContactLess: Boolean = true, pCapkJSON: String, pAIDsJSON: String) {
     /**
      * Max record for SFI
      */
@@ -52,6 +52,8 @@ class EMVParser(pProvider: IProvider, pContactLess: Boolean = true, pCapkJSON: S
 
     init {
         capkTable = CaPublicKeyTable(pCapkJSON)
+        if (pAIDsJSON != "")
+            emvTransactionRecord.setConfiguration(pAIDsJSON)
     }
 
     /**
