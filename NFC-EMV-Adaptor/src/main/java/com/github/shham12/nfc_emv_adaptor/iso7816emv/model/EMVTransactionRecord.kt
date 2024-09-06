@@ -270,7 +270,9 @@ class EMVTransactionRecord {
                     }
                 }
             } else {
-                tvr.setICCDataMissing()
+                // Support Cardholder verification but CVMList is missing
+                if (matchBitByBitIndex(aip[0], 4))
+                    tvr.setICCDataMissing()
                 addEMVTagValue("9F34", "3F0000".toByteArray())
             }
         }
