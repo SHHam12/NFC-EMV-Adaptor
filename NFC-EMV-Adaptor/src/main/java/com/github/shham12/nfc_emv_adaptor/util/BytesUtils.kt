@@ -1,11 +1,13 @@
 package com.github.shham12.nfc_emv_adaptor.util
 
+import java.time.LocalDate
+import java.time.Year
+import java.time.format.DateTimeFormatterBuilder
+import java.time.temporal.ChronoField
 import kotlin.experimental.and
 import kotlin.experimental.inv
 import kotlin.experimental.or
 import kotlin.experimental.xor
-import java.text.SimpleDateFormat
-import java.util.Date
 
 
 object BytesUtils {
@@ -105,10 +107,18 @@ object BytesUtils {
         val dateString1 = bytesToString(date1)
         val dateString2 = bytesToString(date2)
 
-        val dateFormat = SimpleDateFormat("yyMMdd")
+        val currentYear = Year.now().value // Get the current year (e.g., 2024)
 
-        val parsedDate1: Date = dateFormat.parse(dateString1)
-        val parsedDate2: Date = dateFormat.parse(dateString2)
+        // Determine the base year: if the current year is 2024, use 2000; if 2124, use 2100, etc.
+        val baseYear = (currentYear / 100) * 100
+
+        val formatter = DateTimeFormatterBuilder()
+            .appendValueReduced(ChronoField.YEAR, 2, 2, baseYear) // Dynamic base year
+            .appendPattern("MMdd")
+            .toFormatter()
+
+        val parsedDate1: LocalDate = LocalDate.parse(dateString1, formatter)
+        val parsedDate2: LocalDate = LocalDate.parse(dateString2, formatter)
 
         return parsedDate1.compareTo(parsedDate2)
     }
