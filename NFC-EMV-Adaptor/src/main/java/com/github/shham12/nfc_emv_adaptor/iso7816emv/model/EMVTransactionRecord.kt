@@ -311,7 +311,7 @@ class EMVTransactionRecord {
         val defaultIAC = "1111111111".toByteArray()
 
         // Terminal Action Codes
-        val tacDenial = emvTags["DF12"] ?: defaultTAC
+        val tacDenial = emvTags["DF13"] ?: defaultTAC
         val tacOnline = emvTags["DF12"] ?: defaultTAC
         val tacDefault = emvTags["DF11"] ?: defaultTAC
 
