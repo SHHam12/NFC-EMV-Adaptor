@@ -72,7 +72,7 @@ class Configuration {
             } else if (aid.toByteArray().containsSequence("A000000065".toByteArray())) { // kernel 7
                 emvData[aid]?.put("9F66", "62C04000".toByteArray())
             } else if (aid.toByteArray().containsSequence("A000000004".toByteArray())) {
-                emvData[aid]?.put("9F1D", "A980800000".toByteArray())
+                emvData[aid]?.put("9F1D", "A980800000000000".toByteArray())
                 emvData[aid]?.put("DF8117", "80".toByteArray())
                 emvData[aid]?.put("DF8118", "20".toByteArray())
                 emvData[aid]?.put("DF8119", "08".toByteArray())
