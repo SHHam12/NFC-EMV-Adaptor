@@ -83,6 +83,10 @@ class EMVTransactionRecord {
         // Need to add TIP for kernel 5
         if (config.isKernel5())
             addEMVTagValue("9F53", tip.getValue())
+        // Only support Contactless EMV
+        addEMVTagValue("9F39", "07".toByteArray())
+        // Only support purchase at this time
+        setTransactionType("00".toByteArray())
         return emvTags
     }
 
