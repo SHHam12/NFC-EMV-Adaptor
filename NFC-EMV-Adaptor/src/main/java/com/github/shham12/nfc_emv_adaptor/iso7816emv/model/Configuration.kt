@@ -14,6 +14,8 @@ class Configuration {
 
     private lateinit var selectedAID: String
 
+    private val mastercard = "A000000004" // For Kernel 2
+
     private val visa = "A000000003" // For Kernel 3
 
     private val amex = "A000000025" // For Kernel 4
@@ -133,10 +135,26 @@ class Configuration {
         } ?: throw TLVException("Declined (Not support AID: $selectedAID)")
     }
 
+    fun isKernel2(): Boolean = selectedAID.startsWith(mastercard)
     fun isKernel3(): Boolean = selectedAID.startsWith(visa) || selectedAID == "A0000000980840"
     fun isKernel4(): Boolean = selectedAID.startsWith(amex)
     fun isKernel5(): Boolean = selectedAID.startsWith(jcb)
     fun isKernel6(): Boolean = selectedAID.startsWith(discover)
+
+    fun isKernel2SupportCVM(pTag: String, pBit: Int): Boolean{
+        // bit 8: Plain Offline PIN
+        // bit 7: Encrypted Online PIN
+        // bit 6: Sign
+        // bit 5: Encrypted Offline PIN
+        // bit 4: NO CVM
+        var isSupport = false
+        // Use DF8118 and DF8119 at this moment
+        val tagValue = emvData[selectedAID]?.get(pTag)
+        tagValue?.let {
+            isSupport = BytesUtils.matchBitByBitIndex(it[0], pBit)
+        }
+        return isSupport
+    }
 
     fun setConfiguration(pAIDsJSON: String) {
         val emvTagPattern = Regex("^[0-9A-Fa-f]{2,6}$")

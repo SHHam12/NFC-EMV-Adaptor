@@ -228,58 +228,105 @@ class EMVTransactionRecord {
         emvTags[tag] = value
     }
 
-    fun processCVM(){
-        // Check card support Customer Verification
-        val aip = emvTags["82"]
+    private fun checkCV(cvmList: ByteArray?, prefix: String, range: IntRange): Boolean {
+        val cvmRange = range.map { String.format("%02X", it) }  // ex: 1F00 ~ 1F09
+        return cvmRange.any { cvmList?.containsSequence((prefix + it).toByteArray()) == true }
+    }
+
+    fun processCVM() {
+        val aip = emvTags["82"] ?: return // No AIP tag, can't process CVM
         val cvmList = emvTags["8E"]
-        val cpr = emvTags["9F71"]
-        val ttq = emvTags["9F66"]
-        val cvr = emvTags["9F53"]
-        if (aip != null) {
-            if (cvmList != null) {
-                if (exceedCVMLimit) {
-                    if (matchBitByBitIndex(aip[0], 4)) {
-                        // Support Cardholder verification
-                        // Only support signature
-                        if (cvmList.containsSequence("1E06".toByteArray())) {
-                            // Signature
-                            addEMVTagValue("9F34", "1E0000".toByteArray())
-                            tsi.setCardholderVerificationPerformed()
-                        } else if (cvmList.containsSequence("1F02".toByteArray())) {
-                            // No CVM required
-                            addEMVTagValue("9F34", "1F0002".toByteArray())
-                            tsi.setCardholderVerificationPerformed()
-                        } else {
-                            // No matching CVM
-                            addEMVTagValue("9F34", "3F0001".toByteArray())
-                            tsi.setCardholderVerificationPerformed()
-                            tvr.setCardholderVerificationFailed()
-                        }
-                    } else {
-                        // Not suuport Cardholder verification
-                        addEMVTagValue("9F34", "3F0000".toByteArray())
-                    }
-                } else {
-                    // No CVM performed
-                    addEMVTagValue("9F34", "3F0000".toByteArray())
+        val exceedLimit = exceedCVMLimit // Assuming this is a boolean
+
+        if (cvmList == null) {
+            handleCVMListMissing(aip)
+            return
+        }
+
+        if (exceedLimit) {
+            handleExceedLimitCVM(aip, cvmList)
+        } else {
+            handleNoExceedLimitCVM(cvmList)
+        }
+    }
+
+    private fun handleCVMListMissing(aip: ByteArray) {
+        if (config.isKernel3()) {
+            val ctq = emvTags["9F6C"]
+            ctq?.let {
+                if (matchBitByBitIndex(it[0], 6)) {
+                    // Handle signature prompt
                 }
-            } else if (exceedCVMLimit && config.isKernel3()) {
-                val ctq = emvTags["9F6C"]
-                if (ctq == null) {
-                    // Only support signature for now
-                } else {
-                    // Only support signature for now
-                    if (matchBitByBitIndex(ctq[0], 6)) {
-                        // prompt signature
-                    }
+            }
+        } else if (matchBitByBitIndex(aip[0], 4)) {
+            tvr.setICCDataMissing() // Support cardholder verification, but CVM list is missing
+        }
+        addEMVTagValue("9F34", "3F0000".toByteArray())
+    }
+
+    private fun handleExceedLimitCVM(aip: ByteArray, cvmList: ByteArray) {
+        if (!matchBitByBitIndex(aip[0], 4)) {
+            // Cardholder verification not supported
+            addEMVTagValue("9F34", "3F0000".toByteArray())
+            return
+        }
+
+        val signFlag = checkCV(cvmList, "1E", 0..9) || checkCV(cvmList, "5E", 0..9)
+        val noCVMFlag = checkCV(cvmList, "1F", 0..9)
+
+        when {
+            signFlag -> handleSignatureCVM()
+            noCVMFlag -> handleNoCVM()
+            else -> handleNoMatchingCVM()
+        }
+    }
+
+    private fun handleNoExceedLimitCVM(cvmList: ByteArray) {
+        val noCVMFlag = checkCV(cvmList, "1F", 0..9)
+        if (noCVMFlag) {
+            if (config.isKernel2()) {
+                if (!config.isKernel2SupportCVM("DF8119", 3)) {
+                    setFailedCVM("3F0001")
                 }
             } else {
-                // Support Cardholder verification but CVMList is missing
-                if (matchBitByBitIndex(aip[0], 4))
-                    tvr.setICCDataMissing()
-                addEMVTagValue("9F34", "3F0000".toByteArray())
+                setPerformedCVM("1F0002")
             }
+        } else {
+            setFailedCVM("3F0000")
         }
+    }
+
+    private fun handleSignatureCVM() {
+        if (!config.isKernel2SupportCVM("DF8118", 5)) {
+            setFailedCVM("3F0001")
+        } else {
+            setPerformedCVM("1E0000")
+        }
+    }
+
+    private fun handleNoCVM() {
+        if (config.isKernel2()) {
+            if (!config.isKernel2SupportCVM("DF8118", 3)) {
+                setFailedCVM("3F0001")
+            }
+        } else {
+            setPerformedCVM("1F0002")
+        }
+    }
+
+    private fun handleNoMatchingCVM() {
+        setFailedCVM("3F0001")
+    }
+
+    private fun setPerformedCVM(tagValue: String) {
+        addEMVTagValue("9F34", tagValue.toByteArray())
+        tsi.setCardholderVerificationPerformed()
+    }
+
+    private fun setFailedCVM(tagValue: String) {
+        addEMVTagValue("9F34", tagValue.toByteArray())
+        tsi.setCardholderVerificationPerformed()
+        tvr.setCardholderVerificationFailed()
     }
 
     fun processTermRiskManagement(){
