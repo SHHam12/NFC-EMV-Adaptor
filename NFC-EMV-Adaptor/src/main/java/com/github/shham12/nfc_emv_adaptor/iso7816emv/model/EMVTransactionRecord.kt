@@ -284,10 +284,8 @@ class EMVTransactionRecord {
     private fun handleNoExceedLimitCVM(cvmList: ByteArray) {
         val noCVMFlag = checkCV(cvmList, "1F", 0..9)
         if (noCVMFlag) {
-            if (config.isKernel2()) {
-                if (!config.isKernel2SupportCVM("DF8119", 3)) {
-                    setFailedCVM("3F0001")
-                }
+            if (config.isKernel2() && !config.isKernel2SupportCVM("DF8119", 3)) {
+                setFailedCVM("3F0001")
             } else {
                 setPerformedCVM("1F0002")
             }
@@ -297,7 +295,7 @@ class EMVTransactionRecord {
     }
 
     private fun handleSignatureCVM() {
-        if (!config.isKernel2SupportCVM("DF8118", 5)) {
+        if (config.isKernel2() && !config.isKernel2SupportCVM("DF8118", 5)) {
             setFailedCVM("3F0001")
         } else {
             setPerformedCVM("1E0000")
@@ -305,10 +303,8 @@ class EMVTransactionRecord {
     }
 
     private fun handleNoCVM() {
-        if (config.isKernel2()) {
-            if (!config.isKernel2SupportCVM("DF8118", 3)) {
-                setFailedCVM("3F0001")
-            }
+        if (config.isKernel2() && !config.isKernel2SupportCVM("DF8118", 3)) {
+            setFailedCVM("3F0001")
         } else {
             setPerformedCVM("1F0002")
         }
