@@ -274,6 +274,16 @@ class EMVTransactionRecord {
         val signFlag = checkCV(cvmList, "1E", 0..9) || checkCV(cvmList, "5E", 0..9)
         val noCVMFlag = checkCV(cvmList, "1F", 0..9)
 
+        // Update 9F33 Byte 2 according to DF8118
+        if (config.isKernel2()) {
+            val cvmCap = emvTags["DF8118"]
+            val tag9F33 = emvTags["9F33"]
+
+            if (cvmCap != null && tag9F33 != null && tag9F33.size > 1 && cvmCap.isNotEmpty()) {
+                cvmCap.copyInto(tag9F33, destinationOffset = 1, startIndex = 0, endIndex = cvmCap.size)
+            }
+        }
+
         when {
             signFlag -> handleSignatureCVM()
             noCVMFlag -> handleNoCVM()
@@ -282,6 +292,16 @@ class EMVTransactionRecord {
     }
 
     private fun handleNoExceedLimitCVM(cvmList: ByteArray) {
+        // Update 9F33 Byte 2 according to DF8119
+        if (config.isKernel2()) {
+            val cvmCap = emvTags["DF8119"]
+            val tag9F33 = emvTags["9F33"]
+
+            if (cvmCap != null && tag9F33 != null && tag9F33.size > 1 && cvmCap.isNotEmpty()) {
+                cvmCap.copyInto(tag9F33, destinationOffset = 1, startIndex = 0, endIndex = cvmCap.size)
+            }
+        }
+
         val noCVMFlag = checkCV(cvmList, "1F", 0..9)
         if (noCVMFlag) {
             if (config.isKernel2() && !config.isKernel2SupportCVM("DF8119", 3)) {
