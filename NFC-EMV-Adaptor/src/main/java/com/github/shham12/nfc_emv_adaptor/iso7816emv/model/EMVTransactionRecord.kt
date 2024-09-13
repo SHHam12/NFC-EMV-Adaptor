@@ -233,6 +233,15 @@ class EMVTransactionRecord {
         return cvmRange.any { cvmList?.containsSequence((prefix + it).toByteArray()) == true }
     }
 
+    private fun handleCVMUpdate(tagKey: String) {
+        val cvmCap = emvTags[tagKey]
+        val tag9F33 = emvTags["9F33"]
+
+        if (cvmCap != null && tag9F33 != null && tag9F33.size > 1 && cvmCap.isNotEmpty()) {
+            cvmCap.copyInto(tag9F33, destinationOffset = 1, startIndex = 0, endIndex = cvmCap.size)
+        }
+    }
+
     fun processCVM() {
         val aip = emvTags["82"] ?: return // No AIP tag, can't process CVM
         val cvmList = emvTags["8E"]
@@ -241,6 +250,12 @@ class EMVTransactionRecord {
         if (cvmList == null) {
             handleCVMListMissing(aip)
             return
+        }
+
+        if (config.isKernel2()) {
+            // Handle the CVM update based on exceedLimit
+            val tagKey = if (exceedLimit) "DF8118" else "DF8119"
+            handleCVMUpdate(tagKey)
         }
 
         if (exceedLimit) {
@@ -274,16 +289,6 @@ class EMVTransactionRecord {
         val signFlag = checkCV(cvmList, "1E", 0..9) || checkCV(cvmList, "5E", 0..9)
         val noCVMFlag = checkCV(cvmList, "1F", 0..9)
 
-        // Update 9F33 Byte 2 according to DF8118
-        if (config.isKernel2()) {
-            val cvmCap = emvTags["DF8118"]
-            val tag9F33 = emvTags["9F33"]
-
-            if (cvmCap != null && tag9F33 != null && tag9F33.size > 1 && cvmCap.isNotEmpty()) {
-                cvmCap.copyInto(tag9F33, destinationOffset = 1, startIndex = 0, endIndex = cvmCap.size)
-            }
-        }
-
         when {
             signFlag -> handleSignatureCVM()
             noCVMFlag -> handleNoCVM()
@@ -292,19 +297,11 @@ class EMVTransactionRecord {
     }
 
     private fun handleNoExceedLimitCVM(cvmList: ByteArray) {
-        // Update 9F33 Byte 2 according to DF8119
-        if (config.isKernel2()) {
-            val cvmCap = emvTags["DF8119"]
-            val tag9F33 = emvTags["9F33"]
-
-            if (cvmCap != null && tag9F33 != null && tag9F33.size > 1 && cvmCap.isNotEmpty()) {
-                cvmCap.copyInto(tag9F33, destinationOffset = 1, startIndex = 0, endIndex = cvmCap.size)
-            }
-        }
-
         val noCVMFlag = checkCV(cvmList, "1F", 0..9)
+        val tag9F33Value = emvTags["9F33"]?.getOrNull(1) // Safe access
+
         if (noCVMFlag) {
-            if (config.isKernel2() && !config.isKernel2SupportCVM("DF8119", 3)) {
+            if (tag9F33Value == null || !config.isSupportCVM(tag9F33Value, 3)) {
                 setFailedCVM("3F0001")
             } else {
                 setPerformedCVM("1F0002")
@@ -315,7 +312,9 @@ class EMVTransactionRecord {
     }
 
     private fun handleSignatureCVM() {
-        if (config.isKernel2() && !config.isKernel2SupportCVM("DF8118", 5)) {
+        val tag9F33Value = emvTags["9F33"]?.getOrNull(1) // Safe access
+
+        if (tag9F33Value == null || !config.isSupportCVM(tag9F33Value, 5)) {
             setFailedCVM("3F0001")
         } else {
             setPerformedCVM("1E0000")
@@ -323,7 +322,9 @@ class EMVTransactionRecord {
     }
 
     private fun handleNoCVM() {
-        if (config.isKernel2() && !config.isKernel2SupportCVM("DF8118", 3)) {
+        val tag9F33Value = emvTags["9F33"]?.getOrNull(1) // Safe access
+
+        if (tag9F33Value == null || !config.isSupportCVM(tag9F33Value, 3)) {
             setFailedCVM("3F0001")
         } else {
             setPerformedCVM("1F0002")

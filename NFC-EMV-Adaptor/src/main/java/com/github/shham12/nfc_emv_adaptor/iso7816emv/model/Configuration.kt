@@ -141,18 +141,13 @@ class Configuration {
     fun isKernel5(): Boolean = selectedAID.startsWith(jcb)
     fun isKernel6(): Boolean = selectedAID.startsWith(discover)
 
-    fun isKernel2SupportCVM(pTag: String, pBit: Int): Boolean{
+    fun isSupportCVM(pCVM: Byte, pBit: Int): Boolean{
         // bit 8: Plain Offline PIN
         // bit 7: Encrypted Online PIN
         // bit 6: Sign
         // bit 5: Encrypted Offline PIN
         // bit 4: NO CVM
-        var isSupport = false
-        // Use DF8118 and DF8119 at this moment
-        val tagValue = emvData[selectedAID]?.get(pTag)
-        tagValue?.let {
-            isSupport = BytesUtils.matchBitByBitIndex(it[0], pBit)
-        }
+        var isSupport = BytesUtils.matchBitByBitIndex(pCVM, pBit)
         return isSupport
     }
 
