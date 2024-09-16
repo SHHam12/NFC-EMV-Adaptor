@@ -228,9 +228,15 @@ class EMVTransactionRecord {
         emvTags[tag] = value
     }
 
-    private fun checkCV(cvmList: ByteArray?, prefix: String, range: IntRange): Boolean {
+    private fun checkCV(cvmList: ByteArray?, prefix: String, range: IntRange): Pair<Boolean, List<String>> {
         val cvmRange = range.map { String.format("%02X", it) }  // ex: 1F00 ~ 1F09
-        return cvmRange.any { cvmList?.containsSequence((prefix + it).toByteArray()) == true }
+        var matched: List<String>  = cvmRange.filter { cvmList?.containsSequence((prefix + it).toByteArray()) == true }
+
+        // Check if matched values contain "00" or "03" in Byte 2
+        val hasMatchingByte = matched.any { it.endsWith("00") || it.endsWith("03") }
+
+        // Return a pair of the matching result and the matched values
+        return Pair(hasMatchingByte, matched)
     }
 
     private fun handleCVMUpdate(tagKey: String) {
@@ -286,48 +292,54 @@ class EMVTransactionRecord {
             return
         }
 
-        val signFlag = checkCV(cvmList, "1E", 0..9) || checkCV(cvmList, "5E", 0..9)
-        val noCVMFlag = checkCV(cvmList, "1F", 0..9)
+        val (signFlag, signMatched) = checkCV(cvmList, "1E", 0..9)
+        val (signFlagAlt, signMatchedAlt) = checkCV(cvmList, "5E", 0..9)
+        val (noCVMFlag, noCVMMatched) = checkCV(cvmList, "1F", 0..9)
 
         when {
-            signFlag -> handleSignatureCVM()
-            noCVMFlag -> handleNoCVM()
+            signFlag || signFlagAlt -> handleSignatureCVM(signMatched, signMatchedAlt)
+            noCVMFlag -> handleNoCVM(noCVMMatched)
             else -> handleNoMatchingCVM()
         }
     }
 
     private fun handleNoExceedLimitCVM(cvmList: ByteArray) {
-        val noCVMFlag = checkCV(cvmList, "1F", 0..9)
+        val (noCVMFlag, noCVMMatched) = checkCV(cvmList, "1F", 0..9)
         val tag9F33Value = emvTags["9F33"]?.getOrNull(1) // Safe access
 
         if (noCVMFlag) {
             if (tag9F33Value == null || !config.isSupportCVM(tag9F33Value, 3)) {
                 setFailedCVM("3F0001")
             } else {
-                setPerformedCVM("1F0002")
+                setPerformedCVM("1F${noCVMMatched.getOrElse(0) { "00" }}02")
             }
         } else {
             setFailedCVM("3F0000")
         }
     }
 
-    private fun handleSignatureCVM() {
+    private fun handleSignatureCVM(cvRuleByte2: List<String>, cvRuleByte2Alt: List<String>) {
         val tag9F33Value = emvTags["9F33"]?.getOrNull(1) // Safe access
 
         if (tag9F33Value == null || !config.isSupportCVM(tag9F33Value, 5)) {
             setFailedCVM("3F0001")
         } else {
-            setPerformedCVM("1E0000")
+            if (cvRuleByte2.isNotEmpty())
+                setPerformedCVM("1E${cvRuleByte2[0]}00")
+            else if (cvRuleByte2Alt.isNotEmpty())
+                setPerformedCVM("5E${cvRuleByte2Alt[0]}00")
+            else
+                setPerformedCVM("1E0000")
         }
     }
 
-    private fun handleNoCVM() {
+    private fun handleNoCVM(cvRuleByte2: List<String>) {
         val tag9F33Value = emvTags["9F33"]?.getOrNull(1) // Safe access
 
         if (tag9F33Value == null || !config.isSupportCVM(tag9F33Value, 3)) {
             setFailedCVM("3F0001")
         } else {
-            setPerformedCVM("1F0002")
+            setPerformedCVM("1F${cvRuleByte2.getOrElse(0) { "00" }}02") // Safe access to first item
         }
     }
 
