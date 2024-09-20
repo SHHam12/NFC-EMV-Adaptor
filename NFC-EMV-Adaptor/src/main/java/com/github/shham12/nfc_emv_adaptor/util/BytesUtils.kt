@@ -89,6 +89,21 @@ object BytesUtils {
         return data
     }
 
+    fun ByteArray.padStart(newSize: Int, padByte: Byte = 0x00): ByteArray {
+        if (this.size >= newSize) return this
+        val padding = ByteArray(newSize - this.size) { padByte }
+        return padding + this
+    }
+
+    fun compareByteArraysWithPadding(arr1: ByteArray, arr2: ByteArray): Int {
+        val maxLength = maxOf(arr1.size, arr2.size)
+
+        val paddedArr1 = arr1.padStart(maxLength)
+        val paddedArr2 = arr2.padStart(maxLength)
+
+        return compareByteArrays(paddedArr1, paddedArr2)
+    }
+
     fun compareByteArrays(array1: ByteArray, array2: ByteArray): Int {
         require(array1.size == array2.size) { "Both byte arrays must have the same length" }
 

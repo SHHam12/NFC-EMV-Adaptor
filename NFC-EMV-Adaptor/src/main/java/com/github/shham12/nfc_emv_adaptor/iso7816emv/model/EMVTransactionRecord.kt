@@ -5,7 +5,6 @@ import com.github.shham12.nfc_emv_adaptor.iso7816emv.CaPublicKeyTable
 import com.github.shham12.nfc_emv_adaptor.parser.SignedDynamicApplicationDataDecoder
 import com.github.shham12.nfc_emv_adaptor.parser.SignedStaticApplicationDataDecoder
 import com.github.shham12.nfc_emv_adaptor.util.BytesUtils
-import com.github.shham12.nfc_emv_adaptor.util.BytesUtils.containsSequence
 import com.github.shham12.nfc_emv_adaptor.util.BytesUtils.matchBitByBitIndex
 import com.github.shham12.nfc_emv_adaptor.util.BytesUtils.toByteArray
 import java.security.SecureRandom
@@ -27,6 +26,8 @@ class EMVTransactionRecord {
     private val tsi = TransactionStatusIndicator()
 
     private val tip = TerminalInterchangeProfile()
+
+    private val cvm = CardholderVerificationMethod()
 
     private val config = Configuration()
 
@@ -228,18 +229,7 @@ class EMVTransactionRecord {
         emvTags[tag] = value
     }
 
-    private fun checkCV(cvmList: ByteArray?, prefix: String, range: IntRange): Pair<Boolean, List<String>> {
-        val cvmRange = range.map { String.format("%02X", it) }  // ex: 1F00 ~ 1F09
-        var matched: List<String>  = cvmRange.filter { cvmList?.containsSequence((prefix + it).toByteArray()) == true }
-
-        // Check if matched values contain "00" or "03" in Byte 2
-        val hasMatchingByte = matched.any { it.endsWith("00") || it.endsWith("03") }
-
-        // Return a pair of the matching result and the matched values
-        return Pair(hasMatchingByte, matched)
-    }
-
-    private fun handleCVMUpdate(tagKey: String) {
+    private fun handleTermCapCVMUpdate(tagKey: String) {
         val cvmCap = emvTags[tagKey]
         val tag9F33 = emvTags["9F33"]
 
@@ -251,24 +241,32 @@ class EMVTransactionRecord {
     fun processCVM() {
         val aip = emvTags["82"] ?: return // No AIP tag, can't process CVM
         val cvmList = emvTags["8E"]
-        val exceedLimit = exceedCVMLimit // Assuming this is a boolean
 
         if (cvmList == null) {
             handleCVMListMissing(aip)
+            addEMVTagValue("9F34", cvm.getValue())
             return
+        }
+
+        emvTags["9F02"]?.let { value9F02 ->
+            cvm.parseCVMList(cvmList, value9F02)
         }
 
         if (config.isKernel2()) {
             // Handle the CVM update based on exceedLimit
-            val tagKey = if (exceedLimit) "DF8118" else "DF8119"
-            handleCVMUpdate(tagKey)
+            val tagKey = if (exceedCVMLimit) "DF8118" else "DF8119"
+            handleTermCapCVMUpdate(tagKey)
         }
 
-        if (exceedLimit) {
-            handleExceedLimitCVM(aip, cvmList)
+        cvm.checkPossibleCVMList()
+
+        if (exceedCVMLimit) {
+            handleExceedLimitCVM(aip)
         } else {
-            handleNoExceedLimitCVM(cvmList)
+            handleNoExceedLimitCVM()
         }
+
+        addEMVTagValue("9F34", cvm.getValue())
     }
 
     private fun handleCVMListMissing(aip: ByteArray) {
@@ -282,78 +280,58 @@ class EMVTransactionRecord {
         } else if (matchBitByBitIndex(aip[0], 4)) {
             tvr.setICCDataMissing() // Support cardholder verification, but CVM list is missing
         }
-        addEMVTagValue("9F34", "3F0000".toByteArray())
     }
 
-    private fun handleExceedLimitCVM(aip: ByteArray, cvmList: ByteArray) {
+    private fun handleExceedLimitCVM(aip: ByteArray) {
         if (!matchBitByBitIndex(aip[0], 4)) {
             // Cardholder verification not supported
-            addEMVTagValue("9F34", "3F0000".toByteArray())
             return
         }
 
-        val (signFlag, signMatched) = checkCV(cvmList, "1E", 0..9)
-        val (signFlagAlt, signMatchedAlt) = checkCV(cvmList, "5E", 0..9)
-        val (noCVMFlag, noCVMMatched) = checkCV(cvmList, "1F", 0..9)
-
         when {
-            signFlag || signFlagAlt -> handleSignatureCVM(signMatched, signMatchedAlt)
-            noCVMFlag -> handleNoCVM(noCVMMatched)
+            cvm.isSignature() -> handleSignatureCVM()
+            cvm.isNoCVM() -> handleNoCVM()
             else -> handleNoMatchingCVM()
         }
     }
 
-    private fun handleNoExceedLimitCVM(cvmList: ByteArray) {
-        val (noCVMFlag, noCVMMatched) = checkCV(cvmList, "1F", 0..9)
+    private fun handleNoExceedLimitCVM() {
         val tag9F33Value = emvTags["9F33"]?.getOrNull(1) // Safe access
 
-        if (noCVMFlag) {
-            if (tag9F33Value == null || !config.isSupportCVM(tag9F33Value, 3)) {
-                setFailedCVM("3F0001")
-            } else {
-                setPerformedCVM("1F${noCVMMatched.getOrElse(0) { "00" }}02")
-            }
-        } else {
-            setFailedCVM("3F0000")
+        when {
+            tag9F33Value == null || !config.isSupportCVM(tag9F33Value, 3) -> setFailedCVM()
+            cvm.isNoCVM() -> handleNoCVM()
         }
     }
 
-    private fun handleSignatureCVM(cvRuleByte2: List<String>, cvRuleByte2Alt: List<String>) {
+    private fun handleSignatureCVM() {
         val tag9F33Value = emvTags["9F33"]?.getOrNull(1) // Safe access
 
         if (tag9F33Value == null || !config.isSupportCVM(tag9F33Value, 5)) {
-            setFailedCVM("3F0001")
-        } else {
-            if (cvRuleByte2.isNotEmpty())
-                setPerformedCVM("1E${cvRuleByte2[0]}00")
-            else if (cvRuleByte2Alt.isNotEmpty())
-                setPerformedCVM("5E${cvRuleByte2Alt[0]}00")
-            else
-                setPerformedCVM("1E0000")
-        }
+            setFailedCVM()
+        } else
+            setPerformedCVM()
     }
 
-    private fun handleNoCVM(cvRuleByte2: List<String>) {
+    private fun handleNoCVM() {
         val tag9F33Value = emvTags["9F33"]?.getOrNull(1) // Safe access
 
         if (tag9F33Value == null || !config.isSupportCVM(tag9F33Value, 3)) {
-            setFailedCVM("3F0001")
-        } else {
-            setPerformedCVM("1F${cvRuleByte2.getOrElse(0) { "00" }}02") // Safe access to first item
-        }
+            setFailedCVM()
+        } else
+            setPerformedCVM()
     }
 
     private fun handleNoMatchingCVM() {
-        setFailedCVM("3F0001")
+        setFailedCVM()
     }
 
-    private fun setPerformedCVM(tagValue: String) {
-        addEMVTagValue("9F34", tagValue.toByteArray())
+    private fun setPerformedCVM() {
         tsi.setCardholderVerificationPerformed()
     }
 
-    private fun setFailedCVM(tagValue: String) {
-        addEMVTagValue("9F34", tagValue.toByteArray())
+    private fun setFailedCVM() {
+        cvm.setCVMfailed()
         tsi.setCardholderVerificationPerformed()
         tvr.setCardholderVerificationFailed()
     }
