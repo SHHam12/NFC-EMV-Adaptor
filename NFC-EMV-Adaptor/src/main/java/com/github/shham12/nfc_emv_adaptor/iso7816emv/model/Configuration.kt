@@ -116,6 +116,10 @@ class Configuration {
         }
     }
 
+    fun getAIDList(): List<String> {
+        return emvData.keys.toList()
+    }
+
     fun loadAID(pAid: ByteArray): Map<String, ByteArray> {
         setAID(pAid)
         return emvData[selectedAID] ?: throw TLVException("Declined (Not support AID: $selectedAID)")

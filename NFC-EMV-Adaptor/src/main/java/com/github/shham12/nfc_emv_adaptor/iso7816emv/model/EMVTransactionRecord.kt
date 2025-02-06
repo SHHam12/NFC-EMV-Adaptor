@@ -69,6 +69,10 @@ class EMVTransactionRecord {
         }
     }
 
+    fun getAIDList(): List<String> {
+        return config.getAIDList()
+    }
+
     fun loadAID(aid: ByteArray) {
         emvTags.putAll(config.loadAID(aid))
     }

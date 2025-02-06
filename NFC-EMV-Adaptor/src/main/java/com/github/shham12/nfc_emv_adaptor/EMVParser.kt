@@ -132,6 +132,14 @@ class EMVParser(pProvider: IProvider, pContactLess: Boolean = true, pCapkJSON: S
     }
 
     private fun selectHigherPriorityApplication(pCandidateTemplates: List<TLV>): TLV? {
+        // Retrieve AID list from configuration
+        val aidList: List<String> = emvTransactionRecord.getAIDList()
+        // Filter candidates according to AID list
+        val filteredCandidates = pCandidateTemplates.filter { tlv ->
+            TLVParser.parseEx(tlv.value).searchByTag("4F")?.value?.let { aidValue ->
+                aidList.any { prefix -> bytesToString(aidValue).uppercase().startsWith(prefix) }
+            } == true
+        }
         // Find the TLV with the higher priorityIndicator
         val applicationWithHigherPriority = pCandidateTemplates.minByOrNull { tlv ->
             // Extract the priorityIndicator as a byte array
