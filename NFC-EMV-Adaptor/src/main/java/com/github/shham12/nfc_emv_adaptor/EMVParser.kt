@@ -1,6 +1,7 @@
 package com.github.shham12.nfc_emv_adaptor
 
 import android.util.Log
+import com.github.shham12.nfc_emv_adaptor.exception.AIDSelectException
 import com.github.shham12.nfc_emv_adaptor.exception.TLVException
 import com.github.shham12.nfc_emv_adaptor.iso7816emv.CaPublicKeyTable
 import com.github.shham12.nfc_emv_adaptor.iso7816emv.TLV
@@ -124,7 +125,20 @@ class EMVParser(pProvider: IProvider, pContactLess: Boolean = true, pCapkJSON: S
                             applicationCandidate = candidateTemplates
                             application = selectHigherPriorityApplication(candidateTemplates)
                         }
-                        setApplicationWithAmount(application, pAmount)
+                        try {
+                            setApplicationWithAmount(application, pAmount)
+                        } catch (e: Exception) {
+                            throw AIDSelectException(
+                                "Error in setApplicationWithAmount",
+                                e,
+                                emvTransactionRecord.getAIDList(),
+                                candidateTemplates.mapNotNull { tlv ->
+                                    TLVParser.parseEx(tlv.value).searchByTag("4F")?.value?.let { aidValue ->
+                                        bytesToString(aidValue).uppercase()
+                                    }
+                                }
+                            )
+                        }
                     }
                 }
             }
